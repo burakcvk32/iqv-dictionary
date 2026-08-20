@@ -7,7 +7,7 @@ enum LayoutType {
 }
 
 const CONFIG = {
-  appName: 'Reforge',
+  appName: 'IQV',
   helpLink: 'https://github.com/iBz-04/Dashboard-starter',
   enablePWA: true,
   theme: {

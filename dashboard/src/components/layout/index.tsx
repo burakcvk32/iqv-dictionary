@@ -1,11 +1,15 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { webRoutes } from '../../routes/web';
 import { Dropdown } from 'antd';
-import { ProLayout, ProLayoutProps } from '@ant-design/pro-components';
+import {
+  ProLayout,
+  ProLayoutProps,
+  RouteContext,
+} from '@ant-design/pro-components';
 import Icon, { DownloadOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useDispatch } from 'react-redux';
 import { logout } from '../../store/slices/adminSlice';
-import { memo } from 'react';
+import { memo, useContext } from 'react';
 import { sidebar } from './sidebar';
 import { apiRoutes } from '../../routes/api';
 import http from '../../utils/http';
@@ -17,6 +21,32 @@ import {
 import { RiShieldUserFill } from 'react-icons/ri';
 import usePwaInstall from '../hooks/pwaInstall';
 
+// public/ altındaki logo dosyaları
+const IQV_WORDMARK = '/iqv_wordmark.png';
+const IQV_ICON = '/icon.png';
+
+/**
+ * Sidebar açıkken wordmark, kapalıyken sadece icon gösterir.
+ * Collapse durumu ProLayout'un kendi RouteContext'inden okunur,
+ * ayrıca bir state tutulmaz.
+ */
+const BrandLogo = () => {
+  const { collapsed } = useContext(RouteContext);
+
+  return (
+    <img
+      src={collapsed ? IQV_ICON : IQV_WORDMARK}
+      alt={CONFIG.appName}
+      style={{
+        height: 28,
+        width: 'auto',
+        objectFit: 'contain',
+        display: 'block',
+      }}
+    />
+  );
+};
+
 const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -25,7 +55,13 @@ const Layout = () => {
 
   const defaultProps: ProLayoutProps = {
     title: CONFIG.appName,
-    logo: '/icon.png',
+    logo: IQV_ICON,
+    headerTitleRender: () => (
+      <a>
+        <BrandLogo />
+        
+      </a>
+    ),
     fixedHeader: true,
     fixSiderbar: true,
     layout: CONFIG.theme.sidebarLayout,
