@@ -1,11 +1,19 @@
-name: CI
+name: IQV Dictionary CI
 
-# NOT (CI hazirlik denetimi, 2026-08-30): bu dosyanin adi ("Test
-# Deployment") ve tetikleyicisi (yalnizca `pull_request`) korunmustu, ama
-# platform GITHUB ACTIONS zaten mevcuttu (bkz. dependabot.yml,
-# origin=GitHub) -- YENI bir CI platformu EKLENMEDI, yalnizca ayni
-# platformdaki mevcut dosya genisletildi. `push` (main) ve manuel
-# `workflow_dispatch` (k6 yuk/stres testi icin, bkz. asagida) eklendi.
+# IQV Dictionary CI -- tek workflow icinde backend + dashboard + destek
+# kontrolleri (k6 performans, Docker build dogrulama, install/update
+# script syntax denetimi). MkDocs/dokumantasyon build'i BURADA DEGIL,
+# ayri "IQV Dictionary Docs" workflow'unda (.github/workflows/docs.yml)
+# calisir -- ikisi ayni koddaki degisiklige gore GEREKSIZ YERE birbirini
+# tetiklemesin diye ayrildi (bkz. docs.yml'deki `paths` filtresi).
+#
+# Dependabot PR'lari (`build(deps)...` / `build(deps-dev)...` baslikli)
+# AYRI bir workflow/dosya OLUSTURMAZ -- her Dependabot PR'i, normal bir
+# pull_request gibi bu AYNI "IQV Dictionary CI" workflow'unu tetikler.
+# Actions ekranindaki cok sayida "build(deps)..." satiri, GitHub'in HER
+# PR/push icin bu TEK workflow'u ayri bir "run" olarak listelemesinden
+# kaynaklanir -- bu normal/beklenen davranistir, workflow SAYISINI
+# artirmaz (bkz. dependabot.yml).
 on:
   pull_request:
     branches: [main]
@@ -27,11 +35,9 @@ env:
 jobs:
   # ============================================================
   # FRONTEND (dashboard/) -- cheap checks once, expensive (build) last.
-  # KOK NEDEN: eski dosyada `working-directory` HIC belirtilmiyordu ve
-  # komutlar repo KOKUNDEN calistiriliyordu -- ama `dashboard/` artik bir
-  # ALT dizin (repo koku package.json BARINDIRMIYOR); bu haliyle
-  # `npm ci` repo kokunde CALISMAZDI. `defaults.run.working-directory`
-  # ile duzeltildi.
+  # Gercek paket yoneticisi pnpm'dir (dashboard/pnpm-lock.yaml
+  # kaynak-dogrusu, dashboard/README.md zaten pnpm ile yazili) --
+  # deterministic install icin `pnpm install --frozen-lockfile`.
   # ============================================================
   frontend:
     name: Frontend (dashboard)
@@ -43,12 +49,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # KOK NEDEN (2026-08-31 duzeltmesi): dashboard'un GERCEK paket
-      # yoneticisi pnpm'dir (dashboard/pnpm-lock.yaml kaynak-dogrusu,
-      # README.md/dashboard/README.md zaten pnpm ile yaziliydi) --
-      # eski workflow yanlislikla npm/package-lock.json kullaniyordu,
-      # bu duzeltildi. `pnpm/action-setup`, `actions/setup-node`'un
-      # `cache: 'pnpm'` secenegini kullanabilmesi icin ONCE gelmeli.
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -102,7 +102,9 @@ jobs:
           retention-days: 7
 
   # ============================================================
-  # BACKEND (backend/)
+  # BACKEND (backend/) -- gercek paket yoneticisi npm
+  # (backend/package-lock.json kaynak-dogrusu) -- deterministic install
+  # icin `npm ci`.
   # ============================================================
   backend:
     name: Backend
@@ -133,13 +135,9 @@ jobs:
       - name: Prettier check
         run: npm run prettier
 
-      # KOK NEDEN (Section 8/9/26): CI, GERCEK/uretim MongoDB'sine ASLA
-      # baglanmaz. Backend'in KENDI test paketi zaten kurulu
-      # standarda uyuyor: `src/tests/support/*` altindaki in-memory sahte
-      # repository'ler (Mongo YERINE gecen). Auth/authz/self-privilege-
-      # escalation/audit-log-sizinti regresyon testleri BU suite'in
-      # PARCASI (bkz. docs/testing/testing.md) -- ayri bir adim GEREKMEZ,
-      # `npm test` hepsini kapsar.
+      # CI, GERCEK/uretim MongoDB'sine ASLA baglanmaz. Backend'in KENDI
+      # test paketi zaten kurulu standarda uyuyor: `src/tests/support/*`
+      # altindaki in-memory sahte repository'ler (Mongo YERINE gecen).
       - name: Unit / integration tests (in-memory repositories, no real Mongo)
         run: npm test
         env:
@@ -161,10 +159,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      # KOK NEDEN (Section 23): yalnizca GERCEKTEN var olan `/health`
-      # ucu test edilir (bkz. src/app.ts) -- `/health/live`,
-      # `/health/ready` gibi UYDURULMUS uclar YOK, bu yuzden test
-      # EDILMIYOR. Sunucu, gercek Mongo'ya ihtiyac duymayan in-memory
+      # Yalnizca GERCEKTEN var olan `/health` ucu test edilir (bkz.
+      # src/app.ts). Sunucu, gercek Mongo'ya ihtiyac duymayan in-memory
       # k6 test sunucusuyla (bkz. tests/performance/server/k6TestServer.ts)
       # gecici olarak ayaga kaldirilir.
       - name: Smoke-start server and check /health
@@ -182,10 +178,8 @@ jobs:
           exit 1
 
   # ============================================================
-  # k6 SMOKE (Section 18: kisa, dusuk VU, her push/PR'da calisir).
-  # Uretime ASLA karsi calismaz (Section 19) -- yalnizca in-memory
-  # k6TestServer'a karsi, ayni PERFORMANCE_REPORT.md'de belgelenen
-  # yontemle.
+  # k6 SMOKE -- kisa, dusuk VU, her push/PR'da calisir. Uretime ASLA
+  # karsi calismaz -- yalnizca in-memory k6TestServer'a karsi.
   # ============================================================
   k6-smoke:
     name: k6 performance smoke
@@ -231,9 +225,8 @@ jobs:
           K6_TEST_SERVER_PORT: 4001
 
   # ============================================================
-  # k6 LOAD/STRESS (Section 18: manuel/nightly, PR/push'ta calismaz).
-  # Yalnizca `workflow_dispatch` ile `run_k6_load_test=true` verildiginde
-  # calisir.
+  # k6 LOAD/STRESS -- manuel/nightly, PR/push'ta calismaz. Yalnizca
+  # `workflow_dispatch` ile `run_k6_load_test=true` verildiginde calisir.
   # ============================================================
   k6-load-stress:
     name: k6 load/stress (manual)
@@ -278,8 +271,8 @@ jobs:
           K6_TEST_SERVER_PORT: 4001
 
   # ============================================================
-  # DOCKER (Section 20/21/22): yalnizca YEREL DOGRULAMA -- hicbir
-  # registry'ye PUSH edilmez, hicbir yere deploy edilmez.
+  # DOCKER -- yalnizca YEREL DOGRULAMA -- hicbir registry'ye PUSH
+  # edilmez, hicbir yere deploy edilmez.
   # ============================================================
   docker-build:
     name: Docker build validation
@@ -349,31 +342,3 @@ jobs:
             }
           }
           if ($hadError) { throw "PowerShell syntax errors found." }
-
-  # ============================================================
-  # MKDOCS (Section 27-35)
-  # ============================================================
-  mkdocs:
-    name: MkDocs build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install MkDocs
-        run: pip install -r requirements-docs.txt
-
-      - name: Build documentation (strict)
-        run: mkdocs build --strict
-
-      - name: Upload MkDocs site
-        uses: actions/upload-artifact@v4
-        with:
-          name: mkdocs-site
-          path: site
-          retention-days: 14

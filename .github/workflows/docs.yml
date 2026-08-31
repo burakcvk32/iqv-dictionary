@@ -1,0 +1,50 @@
+name: IQV Dictionary Docs
+
+# IQV Dictionary Docs -- MkDocs dokumantasyon build'i, "IQV Dictionary
+# CI" workflow'undan (ci.yml) TAMAMEN AYRI. Backend/dashboard kod
+# degisikliklerinde GEREKSIZ YERE calismasin diye yalnizca gercekten
+# dokumantasyonu etkileyen yollarda (`paths`) tetiklenir. Bu workflow
+# hicbir yere DEPLOY etmez (GitHub Pages vb.) -- yalnizca `mkdocs build
+# --strict` ile dokumantasyonun GECERLI/kirilmamis oldugunu dogrular ve
+# derlenen siteyi (`site/`) bir build artifact'i olarak yukler. Mevcut
+# projede zaten bir Pages deploy mekanizmasi YOK -- bu workflow boyle
+# bir mekanizma da EKLEMEZ.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+
+jobs:
+  mkdocs:
+    name: MkDocs build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install MkDocs
+        run: pip install -r requirements-docs.txt
+
+      - name: Build documentation (strict)
+        run: mkdocs build --strict
+
+      - name: Upload MkDocs site
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkdocs-site
+          path: site
+          retention-days: 14
