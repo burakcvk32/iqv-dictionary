@@ -282,6 +282,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # KOK NEDEN: docker-compose.yml'deki dictionary-backend servisi
+      # `env_file: ./backend/.env` kullanir -- bu dosya repo'da YOKTUR
+      # (bilerek .gitignore'da, gercek sirlar asla commit edilmez), bu
+      # yuzden `docker compose ... config` (syntax/interpolation
+      # dogrulamasi, gercek bir container BASLATMAZ) bu dosyayi bulamayinca
+      # FAIL olur. Cozum: runner'in GECICI dosya sisteminde, SADECE bu
+      # job suresince var olan, backend/.env.example'daki (zaten CI-safe
+      # placeholder degerler icin repo'da mevcut) degerlerden bir
+      # backend/.env kopyasi olusturulur -- hicbir gercek sir eklenmez,
+      # hicbir yere commit edilmez, hicbir artifact'e dahil edilmez
+      # (backend/.dockerignore zaten .env'i build context'inden haric
+      # tutar). Runner is bitince bu dosya kalici olarak yok olur.
+      - name: Create CI-only backend/.env for Docker Compose validation (ephemeral runner file, safe placeholders only, never committed)
+        run: cp backend/.env.example backend/.env
+
       - name: Build backend image (dev — local validation only, no push)
         run: docker build -t iqv-dictionary-backend:ci ./backend
 
