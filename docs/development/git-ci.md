@@ -4,14 +4,26 @@
 
 Bu sayfa, Dictionary projesinin Git/CI hazırlığı sırasında (2026-08-30) kurulan
 gerçek, çalışan CI pipeline'ını belgeler. Burada anlatılan HER adım
-`.github/workflows/test-deploy.yml` içinde gerçekten tanımlıdır —
-uydurulmuş veya "planlanan" bir adım yoktur.
+`.github/workflows/ci.yml` içinde gerçekten tanımlıdır — uydurulmuş
+veya "planlanan" bir adım yoktur.
 
 ## CI Platformu
 
 Proje **GitHub Actions** kullanır (`origin` remote'u GitHub'dadır,
-`.github/workflows/` ve `.github/dependabot.yml` zaten mevcuttu). CI hazırlığı sırasında yeni bir platform EKLENMEDİ — yalnızca
-mevcut `test-deploy.yml` dosyası genişletildi.
+`.github/workflows/` ve `.github/dependabot.yml` zaten mevcuttu).
+Uygulama kodu (backend/dashboard/Docker/k6/scripts) ile dokümantasyon
+(MkDocs) build'i **iki ayrı workflow dosyasına** bölünmüştür — Actions
+ekranında iki bağımsız workflow olarak görünsünler ve birbirini
+GEREKSİZ YERE tetiklemesinler diye:
+
+| Workflow dosyası | Actions ekranındaki adı | Kapsam |
+|---|---|---|
+| `.github/workflows/ci.yml` | **IQV Dictionary CI** | backend, dashboard, Docker doğrulama, k6, script lint, Quality Pipeline |
+| `.github/workflows/docs.yml` | **IQV Dictionary Docs** | yalnızca `mkdocs build --strict` + site artifact'i |
+
+MkDocs işlemleri `ci.yml` içine TAŞINMAZ — bu sayfanın geri kalanı
+yalnızca `ci.yml`'i belgeler; `docs.yml` için bkz. aşağıdaki
+"Docs Workflow" bölümü.
 
 ## Branch Stratejisi
 
@@ -35,21 +47,49 @@ pnpm run typecheck && pnpm run lint && pnpm run prettier && pnpm test
 npm run typecheck && npm run lint && npm run prettier && npm test
 ```
 
-## CI Pipeline Aşamaları (gerçek, tanımlı job'lar)
+## CI Pipeline Aşamaları (`ci.yml` içindeki gerçek, tanımlı job'lar)
 
 | Job | Ne yapar | Ne zaman çalışır |
 |---|---|---|
 | `frontend` | `dashboard/`: `pnpm install --frozen-lockfile` → typecheck → lint → prettier → test → coverage → build | her push/PR |
 | `backend` | `backend/`: `npm ci` → typecheck → lint → prettier → test → coverage → build → `/health` duman testi | her push/PR |
 | `k6-smoke` | `backend` job'undan sonra, in-memory test sunucusuna karşı kısa k6 smoke script'leri | her push/PR |
-| `docker-build` | `frontend`+`backend` job'larından sonra: iki DEV Dockerfile (`backend/Dockerfile`, `dashboard/Dockerfile`) + iki PRODUCTION Dockerfile (`backend/Dockerfile.prod`, `dashboard/Dockerfile.prod`) için yerel `docker build` (registry'ye PUSH YOK) + `docker-compose.yml` VE `docker-compose.prod.yml` için `docker compose config` doğrulaması | her push/PR |
+| `docker-build` | `frontend`+`backend` job'larından sonra: iki DEV Dockerfile (`backend/Dockerfile`, `dashboard/Dockerfile`) + iki PRODUCTION Dockerfile (`backend/Dockerfile.prod`, `dashboard/Dockerfile.prod`) için yerel `docker build` (registry'ye PUSH YOK) + `docker-compose.yml` VE `docker-compose.prod.yml` için `docker compose config` doğrulaması (CI-only, placeholder `backend/.env` ile — bkz. [Sorun Giderme](../troubleshooting.md)) | her push/PR |
 | `scripts-lint` | `scripts/linux/*.sh` için `bash -n`, `scripts/windows/*.ps1`/`*.psm1` için gerçek PowerShell parser doğrulaması (`[System.Management.Automation.Language.Parser]::ParseFile`, `pwsh` GitHub-hosted runner'da hazır gelir) | her push/PR |
-| `mkdocs` | `mkdocs build --strict` | her push/PR |
 | `k6-load-stress` | Uzun, yüksek VU'lu k6 yük/stres testleri | yalnızca manuel `workflow_dispatch` |
+| `quality-pipeline` | Yukarıdaki job'ların GERÇEK sonuçlarını toplayıp 100 puanlık bir kalite raporu (`REPORT.md`/`REPORT.json`/`QUALITY.svg`) üretir ve strict gate'i uygular — bkz. aşağıdaki "Quality Pipeline" bölümü | her push/PR, `if: always()` |
 
 Sıralama, ucuz kontrollerin (install/typecheck/lint/test) önce, pahalı
-olanların (build/Docker/k6/MkDocs) sonra çalışacağı şekilde kuruldu
-(fail-fast).
+olanların (build/Docker/k6) sonra çalışacağı şekilde kuruldu (fail-fast).
+MkDocs build'i burada DEĞİL, ayrı `docs.yml` workflow'undadır (aşağıya
+bakın).
+
+## Docs Workflow (`docs.yml` — "IQV Dictionary Docs")
+
+`.github/workflows/docs.yml`, Actions ekranında **ayrı, bağımsız bir
+workflow** olarak görünür (adı tam olarak `IQV Dictionary Docs`).
+İçeriği: Python kurulumu → `pip install -r requirements-docs.txt` →
+`mkdocs build --strict` → derlenen `site/`'ı `iqv-dictionary-docs-site`
+artifact'i olarak yükleme. Hiçbir yere (GitHub Pages dahil) deploy
+ETMEZ — yalnızca dokümantasyonun bozulmadığını doğrular.
+
+Tetikleyiciler: `push`/`pull_request` (yalnızca `docs/**`,
+`mkdocs.yml`, `requirements-docs.txt` değiştiğinde — backend/dashboard
+kod değişikliklerinde gereksiz yere çalışmasın diye) VE
+`workflow_dispatch` (elle, herhangi bir zamanda tetiklenebilir —
+workflow'un Actions ekranında görünür/keşfedilebilir kalmasını da
+sağlar, `paths` filtresine takılıp hiç çalışmadığı bir durum oluşmaz).
+
+## Quality Pipeline
+
+`quality-pipeline` job'u, yukarıdaki tüm zorunlu job'ların
+`needs.*.result` değerlerini toplar ve `scripts/ci/generate-quality-report.mjs`
+ile 100 puanlık bir rapor üretir (Backend 30, Dashboard 30, Docker 15,
+k6 Smoke 15, Scripts 10). **Skor yalnızca raporlama içindir** — gerçek
+bir zorunlu aşama FAIL/iptal/beklenmedik-skip olduğunda sonuç HER ZAMAN
+`FAILED`dir (strict gate, skor ile yumuşatılamaz). Rapor `if: always()`
+ile önceki aşamalardan biri FAIL olsa bile üretilir ve
+`iqv-dictionary-quality-report` artifact'i olarak yüklenir.
 
 ## Node.js Sürümü
 

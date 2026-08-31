@@ -1,13 +1,116 @@
-site_name: Dictionary Projesi Dokümantasyonu
-site_description: Dictionary (Türkçe/İngilizce terminoloji sözlüğü) projesi geliştirici dokümantasyonu — Git/CI, test ve sürüm hazırlık süreçleri.
+# ============================================================
+# IQV Dictionary -- MkDocs (Material) dokümantasyon konfigürasyonu.
+#
+# Tema: Material for MkDocs (açık/koyu tema toggle'ı, üst arama kutusu,
+# sol sidebar navigation, sağ TOC, repo linki -- hepsi tema özelliği
+# olarak native gelir).
+# Dil: mkdocs-static-i18n (suffix modu) ile Türkçe (varsayılan) / İngilizce.
+# Her sayfanın TR hali `sayfa.md`, EN hali `sayfa.en.md` olarak durur --
+# ayrı tr/ en/ klasör ağacı KURULMADI (gereksiz karmaşa yaratmamak için,
+# suffix modu mkdocs-static-i18n'in kendi önerdiği standart yöntemdir).
+# ============================================================
+site_name: IQV Dictionary Dokümantasyonu
+site_description: >-
+  Dictionary (Türkçe/İngilizce endüstriyel terminoloji sözlüğü) projesinin
+  geliştirici dokümantasyonu -- mimari, kurulum, API, test ve CI/CD.
 repo_url: https://github.com/iqvizyon-development/iqv-react-dashboard
 repo_name: iqv-react-dashboard
 docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  language: tr
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Kullanıcının işletim sistemi tercihini otomatik yakalar; sağ üstteki
+    # güneş/ay ikonuyla kullanıcı bunu İSTEDİĞİ ZAMAN elle değiştirebilir
+    # (Material'in yerleşik light/dark toggle'ı).
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Koyu temaya geç
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Açık temaya geç
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.tabs.link
+
+plugins:
+  - search:
+      lang:
+        - tr
+        - en
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: tr
+          name: Türkçe
+          build: true
+          default: true
+        - locale: en
+          name: English
+          build: true
+          site_name: IQV Dictionary Documentation
+          site_description: >-
+            Developer documentation for Dictionary (a Turkish/English
+            industrial terminology dictionary) -- architecture, setup, API,
+            testing and CI/CD.
+          nav_translations:
+            Ana Sayfa: Home
+            Mimari: Architecture
+            Kurulum / Dağıtım: Installation / Deployment
+            Kurulum / Güncelleme / Kaldırma: Installation / Update / Uninstall
+            Backend API: Backend API
+            Frontend / Dashboard: Frontend / Dashboard
+            Geliştirme: Development
+            Git ve CI: Git & CI/CD
+            Test: Testing
+            Performans Testi: Performance Testing
+            Sürüm Kontrol Listesi: Release Checklist
+            Test Raporları: Test Reports
+            Test Raporu: Test Report
+            Performans Raporu: Performance Report
+            UAT Raporu: UAT Report
+            Sorun Giderme: Troubleshooting
+
+markdown_extensions:
+  - tables
+  - fenced_code
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - toc:
+      permalink: true
 
 nav:
   - Ana Sayfa: index.md
+  - Mimari: architecture.md
   - Kurulum / Dağıtım:
       - Kurulum / Güncelleme / Kaldırma: deployment/installation.md
+  - Backend API: backend-api.md
+  - Frontend / Dashboard: frontend.md
   - Geliştirme:
       - Git ve CI: development/git-ci.md
       - Test: development/testing.md
@@ -17,14 +120,4 @@ nav:
       - Test Raporu: testing/TEST_REPORT.md
       - Performans Raporu: testing/PERFORMANCE_REPORT.md
       - UAT Raporu: testing/UAT_REPORT.md
-
-theme:
-  name: readthedocs
-
-markdown_extensions:
-  - tables
-  - fenced_code
-  - toc:
-      permalink: true
-
-strict: true
+  - Sorun Giderme: troubleshooting.md
