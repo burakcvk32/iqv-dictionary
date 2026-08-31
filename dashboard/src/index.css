@@ -357,13 +357,18 @@ body:has(.login-page) {
 @media (hover: hover) and (pointer: fine) {
   .iqv-person-delete-btn.ant-btn:not(:disabled):hover {
     border-color: var(--iqv-btn-danger);
-    background-color: color-mix(in srgb, var(--iqv-btn-danger) 12%, transparent);
+    background-color: color-mix(
+      in srgb,
+      var(--iqv-btn-danger) 12%,
+      transparent
+    );
   }
 }
 
 .iqv-person-delete-btn.ant-btn:not(:disabled):focus-visible {
   border-color: var(--iqv-btn-danger);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--iqv-btn-danger) 30%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--iqv-btn-danger) 30%, transparent);
 }
 
 .iqv-person-delete-btn.ant-btn:not(:disabled):active {

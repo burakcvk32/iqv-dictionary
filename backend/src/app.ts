@@ -89,10 +89,7 @@ export const createApp = (deps: AppDependencies): Express => {
   );
   app.use(
     '/api/v1/users',
-    createPeopleRouter(
-      deps.peopleRepository,
-      deps.jwtSecret,
-    ),
+    createPeopleRouter(deps.peopleRepository, deps.jwtSecret),
   );
   app.use('/list-dictionary', apiLimiter);
   app.use('/create-dictionary', apiLimiter);
@@ -105,10 +102,7 @@ export const createApp = (deps: AppDependencies): Express => {
 
   app.use(
     '/api/v1/dictionary',
-    createDictionaryRouter(
-      deps.dictionaryRepository,
-      deps.jwtSecret,
-    ),
+    createDictionaryRouter(deps.dictionaryRepository, deps.jwtSecret),
   );
 
   // Legacy Node-RED compatibility aliases — same service, no duplicated logic.

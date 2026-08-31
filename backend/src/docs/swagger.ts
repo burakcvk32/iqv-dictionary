@@ -1,7 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 import express, { NextFunction, Request, Response, Router } from 'express';
-import yaml from 'js-yaml';
+// KOK NEDEN (Vitest altinda "Cannot read properties of undefined
+// (reading 'load')"): js-yaml@5.x artik SADECE named export'lar
+// sunuyor (dist/js-yaml.mjs'de `export default` YOK) -- gercek Node/
+// tsx CJS calistirmasinda (`esModuleInterop`) TypeScript'in
+// `__importDefault` yardimcisi butun modulu `{ default: modul }`
+// olarak SARDIGI icin `import yaml from 'js-yaml'` calisiyordu, AMA
+// Vitest/Vite'in kendi ESM-once modul cozumlemesi package.json
+// `exports.import` alanindaki GERCEK ESM dosyasini (default export'u
+// OLMAYAN) DOGRUDAN yukluyor -- bu yuzden `yaml` orada `undefined`
+// donuyordu. `import * as yaml from 'js-yaml'` (namespace import) HER
+// IKI ortamda da (CJS interop + gercek ESM) dogru calisir.
+import * as yaml from 'js-yaml';
 import swaggerUi from 'swagger-ui-express';
 
 // IQV Dictionary Swagger / OpenAPI dokumantasyonu -- BACKEND-NATIVE.
@@ -54,7 +65,12 @@ const IQV_GROUP_LABELS: Record<string, string> = {
 };
 
 // Kok grup SIRASI (Swagger ekranindaki sira) -- ERP ile AYNI mantik.
-const IQV_ROOT_GROUP_ORDER = ['TOTAL APIs', 'INTERNAL APIs', 'EXTERNAL APIs', 'SYSTEM APIs'];
+const IQV_ROOT_GROUP_ORDER = [
+  'TOTAL APIs',
+  'INTERNAL APIs',
+  'EXTERNAL APIs',
+  'SYSTEM APIs',
+];
 
 // Alan (domain) SIRASI -- Dictionary'nin GERCEK domainleri (ERP'nin
 // listesi KOPYALANMAZ; bu liste yalnizca Dictionary'nin kendi
@@ -71,7 +87,15 @@ interface OpenApiSpec {
   [key: string]: unknown;
 }
 
-const OPERATION_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
+const OPERATION_METHODS = [
+  'get',
+  'post',
+  'put',
+  'patch',
+  'delete',
+  'head',
+  'options',
+];
 
 /**
  * ERP'deki applyIqvTaxonomy() ile AYNI islemi yapar: her operation'a
@@ -91,7 +115,12 @@ const applyIqvTaxonomy = (spec: OpenApiSpec): OpenApiSpec => {
     (spec.tags ?? []).map((tag) => [tag.name, tag.description]),
   );
 
-  const counts: Record<string, number> = { TOTAL: 0, INTERNAL: 0, EXTERNAL: 0, SYSTEM: 0 };
+  const counts: Record<string, number> = {
+    TOTAL: 0,
+    INTERNAL: 0,
+    EXTERNAL: 0,
+    SYSTEM: 0,
+  };
   const domainsByGroup = new Map<string, Set<string>>(
     IQV_ROOT_GROUP_ORDER.map((group) => [group, new Set<string>()]),
   );
@@ -105,11 +134,7 @@ const applyIqvTaxonomy = (spec: OpenApiSpec): OpenApiSpec => {
 
       const classification = operation['x-iqv-classification'];
       const domain = operation['x-iqv-domain'];
-      if (
-        !classification ||
-        !IQV_GROUP_LABELS[classification] ||
-        !domain
-      ) {
+      if (!classification || !IQV_GROUP_LABELS[classification] || !domain) {
         throw new Error(
           `openapiSpec: ${method.toUpperCase()} ${routePath} icin x-iqv-classification / x-iqv-domain eksik.`,
         );
@@ -136,7 +161,8 @@ const applyIqvTaxonomy = (spec: OpenApiSpec): OpenApiSpec => {
   const orderedTags: Array<{ name: string; description?: string }> = [];
   for (const group of IQV_ROOT_GROUP_ORDER) {
     const domains = [...(domainsByGroup.get(group) ?? [])].sort(
-      (left, right) => domainRank(left) - domainRank(right) || left.localeCompare(right),
+      (left, right) =>
+        domainRank(left) - domainRank(right) || left.localeCompare(right),
     );
     for (const domain of domains) {
       const name = `${group}${IQV_TAG_SEPARATOR}${domain}`;
@@ -196,16 +222,13 @@ export const createDocsRouter = (): Router => {
   // `router.get('/api-docs', ...)` HEM `/api-docs` HEM DE `/api-docs/`
   // ile eslesir -- bu yuzden `req.path`'e gore ACIKCA ayirt edilir,
   // aksi halde `/api-docs/` kendi kendine sonsuz redirect donguye girer.
-  router.get(
-    '/api-docs',
-    (req: Request, res: Response, next: NextFunction) => {
-      if (req.path.endsWith('/')) {
-        next();
-        return;
-      }
-      res.redirect('/api-docs/');
-    },
-  );
+  router.get('/api-docs', (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.endsWith('/')) {
+      next();
+      return;
+    }
+    res.redirect('/api-docs/');
+  });
 
   // ERP ile AYNI mount sirasi: once ozel gruplama betigi (`docs/`
   // altindaki statik dosya), sonra swagger-ui-express'in kendi

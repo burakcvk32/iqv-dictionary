@@ -11,11 +11,7 @@ export const createAuthRouter = (
   jwtExpiresIn: string,
 ): Router => {
   const router = Router();
-  const service = new AuthService(
-    usersRepository,
-    jwtSecret,
-    jwtExpiresIn,
-  );
+  const service = new AuthService(usersRepository, jwtSecret, jwtExpiresIn);
   const controller = createAuthController(service);
   // Dictionary/People router'larindaki AYNI desen (`createAuthMiddleware
   // (jwtSecret)` + `router.use`/route-bazli kullanim) -- yeni bir auth

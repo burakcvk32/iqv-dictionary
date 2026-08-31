@@ -16,9 +16,7 @@ const paginationMeta = (page: number, limit: number, total: number) => ({
   totalPages: Math.max(1, Math.ceil(total / limit)),
 });
 
-export const createDictionaryController = (
-  service: DictionaryService,
-) => ({
+export const createDictionaryController = (service: DictionaryService) => ({
   list: asyncHandler(async (req: Request, res: Response) => {
     const query = parseListQuery(req.query as Record<string, unknown>);
     const { data, total } = await service.list(query);

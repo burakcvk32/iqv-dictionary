@@ -342,3 +342,85 @@ jobs:
             }
           }
           if ($hadError) { throw "PowerShell syntax errors found." }
+
+  # ============================================================
+  # QUALITY PIPELINE -- Backend/Frontend/Docker/k6-smoke/scripts-lint
+  # job'larinin GERCEK sonuclarini (`needs.*.result`) toplayip 100
+  # puanlik bir kalite raporu uretir (REPORT.md/REPORT.json/QUALITY.svg)
+  # ve GitHub Step Summary'ye yazar. `if: always()` ile CI'nin ONCEKI
+  # asamalarindan biri FAIL olsa/skip edilse BILE calisir -- boylece
+  # Backend/Frontend fail oldugunda "sonraki job'lar skip olup quality
+  # artifact hic olusmuyor" sorunu ORTADAN KALKAR. Strict Gate ACIK /
+  # Soft Gate KAPALI: skor yalnizca RAPORLAMA icindir, gercek bir
+  # zorunlu asama basarisiz/iptal/beklenmedik-skip ise sonuc HER ZAMAN
+  # FAILED'dir (bkz. scripts/ci/generate-quality-report.mjs).
+  #
+  # SIRALAMA (kasitli, degistirilmemeli): once rapor + artifact,
+  # EN SONUNDA gerekirse strict gate nedeniyle job'u FAIL et -- boylece
+  # gercek bir CI basarisizliginda bile REPORT.md/REPORT.json/QUALITY.svg
+  # artifact'i HER ZAMAN uretilir ve indirilebilir kalir.
+  # ============================================================
+  quality-pipeline:
+    name: Quality Pipeline
+    if: always()
+    needs:
+      - frontend
+      - backend
+      - docker-build
+      - k6-smoke
+      - k6-load-stress
+      - scripts-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        if: always()
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        if: always()
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Generate Quality Report (REPORT.md / REPORT.json / QUALITY.svg)
+        if: always()
+        env:
+          QR_BACKEND_RESULT: ${{ needs.backend.result }}
+          QR_FRONTEND_RESULT: ${{ needs.frontend.result }}
+          QR_DOCKER_RESULT: ${{ needs.docker-build.result }}
+          QR_K6_SMOKE_RESULT: ${{ needs.k6-smoke.result }}
+          QR_SCRIPTS_LINT_RESULT: ${{ needs.scripts-lint.result }}
+          QR_K6_LOAD_STRESS_RESULT: ${{ needs.k6-load-stress.result }}
+          QR_EVENT_NAME: ${{ github.event_name }}
+          QR_SHA: ${{ github.sha }}
+          QR_REF_NAME: ${{ github.ref_name }}
+          QR_RUN_ID: ${{ github.run_id }}
+          QR_SERVER_URL: ${{ github.server_url }}
+          QR_REPOSITORY: ${{ github.repository }}
+          QR_NODE_VERSION: ${{ env.NODE_VERSION }}
+          QR_OUTPUT_DIR: quality-report
+        run: node scripts/ci/generate-quality-report.mjs
+
+      - name: Upload Quality Report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iqv-dictionary-quality-report
+          path: quality-report
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Enforce strict quality gate
+        if: always()
+        run: |
+          if [ -f quality-report/GATE_RESULT.txt ]; then
+            RESULT=$(cat quality-report/GATE_RESULT.txt)
+          else
+            RESULT="FAILED"
+            echo "::warning::quality-report/GATE_RESULT.txt bulunamadi -- guvenli varsayilan olarak FAILED kabul ediliyor."
+          fi
+          echo "Quality Gate Result: $RESULT"
+          if [ "$RESULT" != "PASSED" ]; then
+            echo "::error::IQV Dictionary Quality Gate FAILED (Strict Gate Mode: ACIK). Ayrintilar icin 'iqv-dictionary-quality-report' artifact'indeki REPORT.md dosyasina bakin."
+            exit 1
+          fi

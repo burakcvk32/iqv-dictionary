@@ -17,9 +17,7 @@ const paginationMeta = (page: number, limit: number, total: number) => ({
   totalPages: Math.max(1, Math.ceil(total / limit)),
 });
 
-export const createPeopleController = (
-  service: PeopleService,
-) => ({
+export const createPeopleController = (service: PeopleService) => ({
   list: asyncHandler(async (req: Request, res: Response) => {
     const query = parsePeopleListQuery(req.query as Record<string, unknown>);
 
