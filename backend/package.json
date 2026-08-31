@@ -39,7 +39,7 @@
     "@types/supertest": "^6.0.2",
     "@types/swagger-ui-express": "^4.1.8",
     "@vitest/coverage-v8": "^2.1.9",
-    "eslint": "^9.13.0",
+    "eslint": "^10.9.1",
     "prettier": "^3.9.6",
     "supertest": "^7.0.0",
     "tsx": "^4.19.1",
