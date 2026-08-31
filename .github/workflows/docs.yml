@@ -1,14 +1,22 @@
 name: IQV Dictionary Docs
 
-# IQV Dictionary Docs -- MkDocs dokumantasyon build'i, "IQV Dictionary
-# CI" workflow'undan (ci.yml) TAMAMEN AYRI. Backend/dashboard kod
-# degisikliklerinde GEREKSIZ YERE calismasin diye yalnizca gercekten
-# dokumantasyonu etkileyen yollarda (`paths`) tetiklenir. Bu workflow
-# hicbir yere DEPLOY etmez (GitHub Pages vb.) -- yalnizca `mkdocs build
-# --strict` ile dokumantasyonun GECERLI/kirilmamis oldugunu dogrular ve
-# derlenen siteyi (`site/`) bir build artifact'i olarak yukler. Mevcut
-# projede zaten bir Pages deploy mekanizmasi YOK -- bu workflow boyle
-# bir mekanizma da EKLEMEZ.
+# IQV Dictionary Docs -- MkDocs dokumantasyon build'i + GitHub Pages
+# deploy'u, "IQV Dictionary CI" workflow'undan (ci.yml) TAMAMEN AYRI.
+# Backend/dashboard kod degisikliklerinde GEREKSIZ YERE calismasin diye
+# yalnizca gercekten dokumantasyonu (veya bu workflow dosyasinin
+# kendisini) etkileyen yollarda (`paths`) tetiklenir; `workflow_dispatch`
+# ile yol/olay fark etmeksizin her zaman elle de tetiklenebilir.
+#
+# GERCEK Pages deploy'u: modern GitHub Pages Actions yontemi
+# (actions/configure-pages + actions/upload-pages-artifact +
+# actions/deploy-pages) kullanilir -- `mkdocs gh-deploy` veya `gh-pages`
+# branch'ine manuel commit YOK. Repo ayarlarinda (Settings -> Pages)
+# Source: "GitHub Actions" olarak secili olmalidir.
+#
+# DEPLOY KOSULU (kasitli): Pull request'lerde yalnizca `mkdocs build
+# --strict` ile GERCEK bir dogrulama yapilir -- production Pages'e
+# HICBIR ZAMAN PR'dan deploy edilmez. Gercek deploy yalnizca `main`'e
+# push VEYA `workflow_dispatch` (main uzerinde) ile calisir.
 on:
   push:
     branches: [main]
@@ -16,24 +24,45 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'requirements-docs.txt'
+      - 'README.md'
+      - '.github/workflows/docs.yml'
   pull_request:
     branches: [main]
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'requirements-docs.txt'
-  # KOK NEDEN DUZELTMESI: `paths` filtresi backend/dashboard kod
-  # degisikliklerinde gereksiz calismamasi icin BILINCLI olarak dar --
-  # ama bu, workflow'un GitHub Actions ekranindaki "Workflows" listesinde
-  # hic gorunmemesine/kesfedilememesine yol acabiliyordu (docs disi bir
-  # degisiklik serisinde hic tetiklenmediginde). `workflow_dispatch`,
-  # yolu ne olursa olsun HER ZAMAN elle tetiklenebilmesini saglar --
-  # boylece workflow Actions ekraninda ayri, gorunur bir kayit olarak
-  # kalir ve gerektiginde manuel calistirilabilir.
+      - 'README.md'
+      - '.github/workflows/docs.yml'
+  # `paths` filtresi disi bir degisiklik serisinde workflow'un Actions
+  # ekraninda hic tetiklenmemis/kesfedilememis gorunmesini onler --
+  # yoldan bagimsiz her zaman elle calistirilabilir.
   workflow_dispatch:
 
+# Pages deploy'u icin minimum, dogru izinler -- fazlasi verilmez.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Ayni anda yalnizca bir Pages deploy'u calissin; yeni bir deploy
+# baslarken YARIM KALMIS bir onceki deploy'u IPTAL ETMEZ (production
+# deploy'larin tamamlanmasina izin verilir) -- resmi GitHub Pages
+# Actions ornek yapisiyla ayni.
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
 jobs:
-  mkdocs:
+  # ============================================================
+  # BUILD -- her push/PR'da calisir: checkout, Python, MkDocs kurulumu,
+  # `mkdocs build --strict` (GERCEK strict dogrulama, PR dahil HER
+  # zaman). Indirilip incelenebilir duz bir artifact (site/) HER ZAMAN
+  # yuklenir. Pages'e ozgu adimlar (configure-pages, upload-pages-
+  # artifact) yalnizca pull_request DISINDA calisir -- bir PR'in Pages
+  # deploy zincirine girmesine GEREK yoktur.
+  # ============================================================
+  build:
     name: MkDocs build
     runs-on: ubuntu-latest
     steps:
@@ -51,9 +80,39 @@ jobs:
       - name: Build documentation (strict)
         run: mkdocs build --strict
 
-      - name: Upload MkDocs site
+      - name: Upload MkDocs site (browsable build artifact)
         uses: actions/upload-artifact@v4
         with:
           name: iqv-dictionary-docs-site
           path: site
           retention-days: 14
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  # ============================================================
+  # DEPLOY -- yalnizca `main`'e gercek bir push VEYA `workflow_dispatch`
+  # ile calisir (pull_request'te ASLA -- yukaridaki DEPLOY KOSULU notuna
+  # bakin). `build` job'unun basariyla urettigi Pages artifact'ini
+  # yayinlar; basarili olunca gercek yayin URL'si bu job'un ozet
+  # ciktisinda ve Settings -> Pages altinda gorunur.
+  # ============================================================
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

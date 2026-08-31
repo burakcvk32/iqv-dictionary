@@ -13,8 +13,13 @@ site_name: IQV Dictionary Dokümantasyonu
 site_description: >-
   Dictionary (Türkçe/İngilizce endüstriyel terminoloji sözlüğü) projesinin
   geliştirici dokümantasyonu -- mimari, kurulum, API, test ve CI/CD.
-repo_url: https://github.com/iqvizyon-development/iqv-react-dashboard
-repo_name: iqv-react-dashboard
+# GitHub Pages'te (Settings -> Pages -> Source: GitHub Actions) yayinlanan
+# gercek adres -- bkz. .github/workflows/docs.yml. repo_url/repo_name,
+# `git remote -v`'deki gercek `origin`'e (bu kodun GERCEKTEN yasadigi repo)
+# isaret eder -- `upstream` (iqv-react-dashboard, ayri/kardes proje) DEGIL.
+site_url: https://burakcvk32.github.io/iqv-dictionary/
+repo_url: https://github.com/burakcvk32/iqv-dictionary
+repo_name: iqv-dictionary
 docs_dir: docs
 strict: true
 

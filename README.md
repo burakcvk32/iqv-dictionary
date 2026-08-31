@@ -6,9 +6,20 @@ personel yönetim paneli: **React + Ant Design** tabanlı bir dashboard
 içerir.
 
 Bu README, projeyi production seviyesinde **tek komutla** kurmak/
-güncellemek/kaldırmak için gereken her şeyi anlatır. Geliştirici
-dokümantasyonu (Git/CI, testler, performans) için `docs/` klasörüne ve
-`mkdocs serve` ile üretilen siteye bakın.
+güncellemek/kaldırmak için gereken operasyonel özeti verir. Mimari,
+Backend API ve test stratejisi gibi ayrıntılı geliştirici dokümantasyonu
+için bkz. [Documentation](#documentation).
+
+## Components
+
+| Bileşen | Teknoloji | Konum |
+|---|---|---|
+| Frontend | React 18 + TypeScript + Vite + Ant Design + Redux Toolkit | `dashboard/` |
+| Backend | Node.js + Express + TypeScript (derlenmiş `dist/`) | `backend/` |
+| Veritabanı | MongoDB (dışarıda çalışır, bu proje tarafından containerize edilmez) | `backend/.env` → `MONGODB_URI` |
+| API Dokümantasyonu | Swagger UI + OpenAPI 3.0.3 (backend-native) | `backend/docs/openapi.yaml`, `/api-docs` |
+| Dokümantasyon Sitesi | MkDocs + Material for MkDocs (TR/EN, açık/koyu tema, GitHub Pages) | `docs/`, `mkdocs.yml` |
+| CI/CD | GitHub Actions — `IQV Dictionary CI`, `IQV Dictionary Docs` | `.github/workflows/` |
 
 ## Requirements
 
@@ -165,6 +176,17 @@ Tek kaynak-doğrusu repo kökündeki **`VERSION`** dosyasıdır (düz metin,
 değiştirilmedi — install/update script'leri "Current version"/"Target
 version" için yalnızca `VERSION`'ı okur.
 
+## Environment Variables
+
+| Dosya | Kim oluşturur | İçerik |
+|---|---|---|
+| `backend/.env` | Yoksa install script'i `.env.example`'dan, **rastgele üretilmiş bir `JWT_SECRET`** ile oluşturur | `PORT`, `MONGODB_URI`, `MONGODB_DB`, `JWT_SECRET`, `CORS_ORIGIN`, ... |
+| `dashboard/.env` | Yoksa install script'i `.env.example`'dan oluşturur | `VITE_API_BASE_URL` |
+| `.env` (repo kökü) | Yoksa install script'i `.env.example`'dan oluşturur — yalnızca Docker modunda kullanılır | `IQV_BACKEND_PORT`, `IQV_FRONTEND_PORT`, `VITE_API_BASE_URL` |
+
+Gerçek secret'lar hiçbir zaman `.env.example` dosyalarına yazılmaz;
+sadece değişken ADLARI belgelenir (bkz. her dosyanın kendisi).
+
 ## Health Check
 
 Install/update, yalnızca process ayakta diye başarı saymaz — gerçek
@@ -215,16 +237,58 @@ gerçek JSON olarak döner — hiçbir zaman HTML değildir. "Try it out"
 istekleri, mevcut Vite dev proxy'si üzerinden gerçek backend'e gider —
 IP/port hiçbir yerde hardcode edilmemiştir.
 
-## Environment Variables
+## CI/CD
 
-| Dosya | Kim oluşturur | İçerik |
-|---|---|---|
-| `backend/.env` | Yoksa install script'i `.env.example`'dan, **rastgele üretilmiş bir `JWT_SECRET`** ile oluşturur | `PORT`, `MONGODB_URI`, `MONGODB_DB`, `JWT_SECRET`, `CORS_ORIGIN`, ... |
-| `dashboard/.env` | Yoksa install script'i `.env.example`'dan oluşturur | `VITE_API_BASE_URL` |
-| `.env` (repo kökü) | Yoksa install script'i `.env.example`'dan oluşturur — yalnızca Docker modunda kullanılır | `IQV_BACKEND_PORT`, `IQV_FRONTEND_PORT`, `VITE_API_BASE_URL` |
+Proje GitHub Actions kullanır, **iki ayrı workflow** ile: `IQV
+Dictionary CI` (uygulama kodu) ve `IQV Dictionary Docs`
+(dokümantasyon) — bkz. `.github/workflows/ci.yml` / `docs.yml`.
 
-Gerçek secret'lar hiçbir zaman `.env.example` dosyalarına yazılmaz;
-sadece değişken ADLARI belgelenir (bkz. her dosyanın kendisi).
+`IQV Dictionary CI`, her `push`/`pull_request`'te (`main`) şu gerçek
+aşamaları çalıştırır:
+
+| Aşama | Ne yapar |
+|---|---|
+| Frontend | `dashboard/`: typecheck → lint → prettier → test → coverage → build |
+| Backend | `backend/`: typecheck → lint → prettier → test → coverage → build → `/health` duman testi |
+| k6 Smoke | Backend'den sonra, in-memory test sunucusuna karşı kısa performans testleri |
+| Docker Build | Dev + production imajlarının build'i, `docker compose config` doğrulaması (registry'ye push yok) |
+| Scripts Lint | `scripts/linux/*.sh` (`bash -n`) ve `scripts/windows/*.ps1`/`*.psm1` (gerçek PowerShell parser) syntax denetimi |
+| Quality Pipeline | Yukarıdaki aşamaların sonuçlarını toplayıp kalite raporu üretir (aşağıya bakın) |
+
+k6 load/stress testleri her push'ta ÇALIŞMAZ — yalnızca manuel
+`workflow_dispatch` ile tetiklenir.
+
+**Quality Pipeline:** gerçek aşama sonuçlarından 100 puanlık bir rapor
+üretir (Backend 30, Dashboard 30, Docker 15, k6 Smoke 15, Scripts 10) —
+`iqv-dictionary-quality-report` artifact'i altında `REPORT.md`,
+`REPORT.json`, `QUALITY.svg`. **Skor yalnızca raporlama içindir** —
+zorunlu bir aşama gerçekten FAIL/iptal olduğunda sonuç her zaman
+`FAILED`dir (strict gate, skorla yumuşatılmaz).
+
+Ayrıntı için bkz. [docs/development/git-ci.md](docs/development/git-ci.md)
+(yayınlanmış dokümantasyon sitesinde "Git ve CI" sayfası).
+
+## Documentation
+
+Bu README, projeyi kurmak/güncellemek/kaldırmak için operasyonel bir
+özet sunar. Mimari, Backend API, Frontend, test stratejisi ve CI/CD'nin
+ayrıntılı, Türkçe/İngilizce dokümantasyonu MkDocs (Material) ile üretilir
+ve GitHub Pages'te yayınlanır:
+
+```text
+https://burakcvk32.github.io/iqv-dictionary/
+```
+
+Yerelde çalıştırmak için:
+
+```bash
+pip install -r requirements-docs.txt
+mkdocs serve
+```
+
+Kaynak: `docs/` (yapı: `mkdocs.yml`). Dokümantasyon sitesi her `main`
+push'unda otomatik yeniden yayınlanır (`IQV Dictionary Docs`
+workflow'u).
 
 ## Troubleshooting
 
