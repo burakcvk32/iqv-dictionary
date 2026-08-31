@@ -24,3 +24,11 @@ dev-dist
 *.njsproj
 *.sln
 *.sw?
+
+# Added for CI/Git readiness (2026-08-30)
+coverage
+_to_delete/
+vite.config.ts.timestamp-*.mjs
+vitest.config.ts.timestamp-*.mjs
+_tmp_*
+yarn.lock

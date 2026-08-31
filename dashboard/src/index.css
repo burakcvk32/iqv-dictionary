@@ -3,13 +3,110 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* IQV Platform ile paylaşılan font yığını — tek kaynak:
+     src/constants/index.tsx `IQV_FONT_FAMILY` (üç yerde birlikte güncellenir). */
+  font-family:
+    Bahnschrift,
+    'Segoe UI',
+    'Segoe UI Web (West European)',
+    -apple-system,
+    BlinkMacSystemFont,
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+
+  /* UYGULAMANIN ORTAK PLACEHOLDER RENGI -- TEK KAYNAK.
+     IQV Platform'un GERCEK referans dosyasindan (Platform Frontend/
+     dashboard/src/index.css, ayni degisken/deger) BIREBIR tasindi.
+     Butun placeholder'lar (IQV/Fluent Input, SearchBox, Textarea; Alt
+     Grup'un native <select> placeholder secenegi) BU degiskenden
+     beslenir -- ton TEK yerden degistirilir ve ekranin her yerinde AYNI
+     kalir. Platform'da BILEREK Fluent'in kendi `--colorNeutralForeground4`
+     tokeni EZILMEDI (o token placeholder DISINDA baska UI metinlerinde de
+     kullanildigindan global degistirmek istenmeyen yan etkiler
+     dogururdu) -- bunun yerine YALNIZCA `::placeholder` pseudo-elemanlarini
+     ve acikca placeholder olan durumlari hedefleyen bu ayri degisken
+     tanimlanir; gercek kullanici degerlerinin rengi HICBIR yerde
+     etkilenmez. Platform'da koyu tema icin ayri bir override YOK (koyu
+     temada normal metin rengi #ffffff oldugundan bu ton orada da "daha
+     sonuk" okunur) -- burada da BILEREK ayni sekilde birakildi. */
+  --iqv-placeholder-color: #c9c9c9;
+}
+
+/* ==========================================================================
+   ORTAK PLACEHOLDER RENGI -- IQV/Fluent form bilesenleri.
+   IQV Platform'un GERCEK referans dosyasindan (Platform Frontend/
+   dashboard/src/index.css) BIREBIR tasindi.
+
+   KAPSAM: yalnizca `::placeholder` pseudo-elemani, yani METIN GIRILMEMIS
+   durum. Kullanici bir deger yazdiginda/sectiginde bu kural DEVREYE
+   GIRMEZ; gercek degerin rengi (Fluent `--colorNeutralForeground1`) AYNEN
+   kalir.
+
+   Etkilenen alanlar (hepsi ayni IQV bilesenlerinden gelir, paket
+   kaynagindan dogrulandi -- bkz. node_modules/@iqvizyonui/react-input/
+   lib/components/Input/useInputStyles.styles.js ("iui-Input__input"),
+   react-textarea/.../useTextareaStyles.styles.js ("iui-Textarea__textarea"),
+   react-search/.../useSearchBoxStyles.styles.js ("iui-SearchBox__input")):
+     - Input    : Turkce/Ingilizce/Kullanici Adi/Sifre/Ad Soyad/E-posta/
+                  Telefon/Telegram ID/Firma placeholder'lari
+     - Textarea : Aciklama / Kullanim Alani placeholder'i
+     - SearchBox: "Terim ara", "Kisilerde ara", "Ara..." placeholder'lari
+
+   SECICI NEDEN `input.` / `textarea.` ILE BASLIYOR: Fluent/griffel kendi
+   kuralini (`.rXXXXXX::placeholder { color: var(--colorNeutralForeground4);
+   opacity: 1 }`) TEK sinif ozgullugu (0,1,0) ile ve calisma zamaninda
+   <head>'e SONRADAN enjekte ediyor. Eleman adi eklenerek ozgulluk (0,1,1)
+   bir basamak yukseltilir, boylece kaynak sirasindan bagimsiz olarak bu
+   kural kazanir. `opacity: 1` tarayicilarin varsayilan placeholder
+   saydamligini kaldirir -- ekrandaki GERCEK renk tam olarak degiskendeki
+   deger olur. Kenarlik, yukseklik, padding, font ve ikon stillerine
+   DOKUNULMAZ -- font-size/weight/line-height placeholder'da AYRICA
+   TANIMLANMAZ, input'un KENDI degerinden (`inherit`) miras alinir (bkz.
+   ayni kaynak dosya, Input'un temel kurali). Bu, kasten dar/riskli
+   OLMAYAN bir kapsamdir: cIplak bir `input::placeholder` / `textarea::
+   placeholder` (butun ham HTML/antd input'larini da etkileyecek genel bir
+   override) BILEREK EKLENMEDI -- yalnizca gercek IQV/Fluent bilesenlerinin
+   kendi, sabit sinif adlari hedeflenir. */
+input.iui-Input__input::placeholder,
+input.iui-SearchBox__input::placeholder,
+textarea.iui-Textarea__textarea::placeholder {
+  color: var(--iqv-placeholder-color);
+  opacity: 1;
+}
+
+/* ALT GRUP -- native <select>'in placeholder-benzeri secenegi ("Alt grup
+   seçin"). Platform'daki GERCEK esdegeriyle (components/notes/
+   NoteFormModal.tsx "Konu" IQV Select'i + src/index.css
+   `.iqv-module-select-placeholder`) AYNI mekanizma: yukaridaki
+   `::placeholder` pseudo-elemani native <select>'te CALISMAZ (secim
+   yokken gorunen metin, secili <option>'un KENDI metnidir, bir
+   placeholder DEGIL) -- bu yuzden ayri, kosullu bir sinif kullanilir
+   (bkz. components/settings/index.tsx, `subgroupValue` + Select'in
+   `select` slotu). Sinif SADECE secim yokken eklenir; gercek bir alt grup
+   seciliyken hic eklenmez ve normal (koyu) metin rengi korunur. */
+select.iqv-select-placeholder {
+  color: var(--iqv-placeholder-color);
+}
+
+/* Bazi tarayicilar acilan liste ogelerinin rengini <select> elemanindan
+   DEVRALIR. Yukaridaki placeholder tonunun listedeki GERCEK alt gruplari
+   da soluklastirmamasi icin secenekler acikca normal metin rengine
+   sabitlenir -- yani secenek gorunumu DEGISMEZ, oldugu gibi kalir. */
+select.iqv-select-placeholder option {
+  color: var(--colorNeutralForeground1);
+}
+
+html,
+body,
+#root {
+  font-family: inherit;
 }
 
 .fade-in {
@@ -62,5 +159,375 @@
   100% {
     -webkit-transform: rotate(359deg);
     transform: rotate(359deg);
+  }
+}
+
+/* =====================================================================
+   LOGIN EKRANI — IQV Platform referansı (Platform Frontend/dashboard'daki
+   src/index.css ile birebir aynı kurallar; sadece bu projede geçerli
+   olmayan koyu-tema notları çıkarılmıştır). Yalnızca Login.tsx / AuthLayout
+   içindeki alan ve butonu etkiler, başka hiçbir ekranı etkilemez. */
+
+.login-page {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color-scheme: light;
+}
+
+html:has(.login-page),
+body:has(.login-page) {
+  background: #f5f0e6;
+}
+
+/* Kayıtlı kimlik bilgileriyle otomatik dolan alanların tarayıcı varsayılan
+   (soluk mavi) autofill zemini, krem login kartıyla çakışıyor; kart rengiyle
+   aynı inset box-shadow ile geçersiz kılınır. */
+.iqv-auth-input:-webkit-autofill,
+.iqv-auth-input:-webkit-autofill:hover,
+.iqv-auth-input:-webkit-autofill:focus,
+.iqv-auth-input input:-webkit-autofill,
+.iqv-auth-input input:-webkit-autofill:hover,
+.iqv-auth-input input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #fdfcf9 inset !important;
+  box-shadow: 0 0 0 1000px #fdfcf9 inset !important;
+  -webkit-text-fill-color: rgba(0, 0, 0, 0.88) !important;
+  caret-color: rgba(0, 0, 0, 0.88);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* iOS Safari, odaklanan bir alanın hesaplanmış font-size'i 16px'in altındaysa
+   sayfayı otomatik yakınlaştırır. Tailwind'in `sm:text-sm` sınıfı yalnızca
+   >=640px genişlikte devreye girdiğinden telefon genişliklerinde antd'nin
+   varsayılan 14px'i kalıyordu — bu kural yalnızca Login alanlarına (mobilde)
+   16px zorlayarak zoom'u engeller; renk/boyut/davranış başka hiçbir yerde
+   değişmez. */
+@media (max-width: 767px) {
+  .iqv-auth-input,
+  .iqv-auth-input input {
+    font-size: 16px !important;
+  }
+}
+
+/* "Giriş Yap" butonu (Login.tsx, iqv-login-submit-btn sınıfı). Renk, antd'nin
+   type'a göre ürettiği .ant-btn-primary/.ant-btn-default sınıflarından değil,
+   Login.tsx'teki gerçek form değerlerinden türeyen hasCredentials state'inden
+   (--filled sınıfı) ve saf :hover/:active pseudo-class'larından gelir —
+   böylece hover/active her zaman mavi/beyaz kalır, rest hâli ise yalnızca
+   kullanıcı adı VE parola ikisi de doluyken mavi olur. Yalnızca bu butona
+   özeldir, başka ekranlardaki butonlar etkilenmez. */
+.iqv-login-submit-btn.ant-btn:not(.iqv-login-submit-btn--filled):not(
+    :disabled
+  ) {
+  background-color: #ffffff !important;
+  border-color: #c9c2b0 !important;
+  color: #3a3a3a !important;
+}
+
+.iqv-login-submit-btn.ant-btn.iqv-login-submit-btn--filled:not(:disabled) {
+  background-color: #4a6fa5 !important;
+  border-color: #4a6fa5 !important;
+  color: #ffffff !important;
+}
+
+.iqv-login-submit-btn.ant-btn:not(:disabled):hover {
+  background-color: #4a6fa5 !important;
+  border-color: #4a6fa5 !important;
+  color: #ffffff !important;
+}
+
+.iqv-login-submit-btn.ant-btn:not(:disabled):active {
+  background-color: #4a6fa5 !important;
+  border-color: #4a6fa5 !important;
+  color: #ffffff !important;
+}
+
+.iqv-login-submit-btn.ant-btn.ant-btn-loading:not(:disabled) {
+  background-color: #4a6fa5 !important;
+  border-color: #4a6fa5 !important;
+  color: #ffffff !important;
+}
+
+.iqv-login-submit-btn.ant-btn:disabled,
+.iqv-login-submit-btn.ant-btn.ant-btn-disabled {
+  background-color: rgba(74, 111, 165, 0.55) !important;
+  border-color: rgba(74, 111, 165, 0.55) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* =====================================================================
+   AKSIYON BUTONLARI -- Vazgeç / Güncelle / Kaydet.
+   IQV Platform'un GERÇEK referans bileşeninden (Platform Frontend/
+   dashboard/src/index.css, `.iqv-platform-modal-cancel-btn` /
+   `.iqv-platform-modal-submit-btn` blokları) BİREBİR taşınmıştır.
+
+   KULLANIM YERLERİ: "Personeli Güncelle" modalı (Vazgeç/Güncelle çifti,
+   PersonEditModal.tsx), Ayarlar hızlı ekleme formunun bağımsız "Kaydet"
+   butonu VE aynı formun (update modunda görünen) "Sil" ikon butonu
+   (settings/index.tsx) -- üçü de AYNI desendeki class'ları paylaşır.
+   Platform'da bu kurallar `.iqv-platform-modal` kapsamı altında tanımlıdır
+   (yalnızca modal footer'ları için); burada `.iqv-platform-modal-submit-btn`
+   ayrıca bir Modal olmayan bağımsız bir Kaydet butonunda da kullanıldığı
+   için kapsam öneki KALDIRILDI -- rengin/davranışın kaynağı DEĞİŞMEDİ,
+   yalnızca hangi DOM'da eşleştiği genişletildi. Özgüllük antd'nin kendi
+   `.ant-btn-default:not(:disabled):hover` kuralından (0,3,0) zaten yüksek
+   (0,4,0) olduğundan kapsam öneki özgüllük için de GEREKMİYORDU.
+
+   DAVRANIŞ:
+     dinlenme -> ZEMİN ŞEFFAF; kenarlık ve metin/ikon butonun KENDİ rengi
+     hover    -> zemin dolar (temel renk %10 koyu)
+     active   -> bir kademe daha koyu (%20)
+   Fare ayrıldığında buton KENDİLİĞİNDEN outline haline döner; aynı anda
+   yalnızca üzerinde durulan buton dolu görünür.
+
+   ÖZGÜLLÜK: `.X.ant-btn:not(:disabled):hover` iki class + iki pseudo-class
+   = (0,4,0), antd'nin `.ant-btn-default:not(:disabled):hover` kuralından
+   (0,3,0) zaten yüksektir (bkz. yukarıdaki KULLANIM YERLERİ notu). Bu
+   yüzden `!important` KULLANILMAZ.
+
+   RENKLER (yeni renk uydurulmadı, Platform ile AYNI):
+     Sil      -> `--iqv-btn-danger`  = tema `token.colorError` (bileşende
+                 verilir -- Platform'un ModuleFormModal.tsx'teki Sil
+                 butonuyla AYNI, sabit bir kırmızı YAZILMAZ)
+     Güncelle -> `--iqv-btn-blue`    = #4a6fa5 (Platform'un "Güncelle" mavisi)
+     Vazgeç   -> `--iqv-btn-neutral` = #d9d9d9, metin `rgba(0,0,0,0.65)`
+
+   Odak halkası HİÇBİR DURUMDA kaldırılmaz; buton sırf odaklandı diye DOLMAZ.
+   Boyut/padding/radius/font BU BLOKTAN ETKİLENMEZ (bkz. `SAVE_BUTTON_STYLE`,
+   utils/index.tsx). */
+.iqv-platform-modal-delete-btn.ant-btn,
+.iqv-platform-modal-cancel-btn.ant-btn,
+.iqv-platform-modal-submit-btn.ant-btn {
+  --iqv-btn-blue: #4a6fa5;
+  --iqv-btn-neutral: #d9d9d9;
+  background-color: transparent;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+/* ---- SİL: kırmızı outline -> hover/active dolu kırmızı ----
+   Platform Frontend/dashboard/src/index.css'teki GERÇEK
+   `.iqv-platform-modal-delete-btn` bloğuyla BİREBİR AYNI (yalnızca
+   `.iqv-platform-modal` kapsam öneki, yukarıdaki Vazgeç/Güncelle
+   ile AYNI gerekçeyle kaldırıldı). `--iqv-btn-danger` burada
+   TANIMLANMAZ -- antd `danger` prop'u zaten kırmızı border/metin/ikon
+   verir, bu değişken yalnızca hover/active dolgusu için bileşenin
+   kendi `style` prop'unda (`token.colorError`) sağlanır. */
+.iqv-platform-modal-delete-btn.ant-btn {
+  border-color: var(--iqv-btn-danger);
+  color: var(--iqv-btn-danger);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iqv-platform-modal-delete-btn.ant-btn:not(:disabled):hover {
+    background-color: color-mix(in srgb, var(--iqv-btn-danger) 90%, black);
+    border-color: color-mix(in srgb, var(--iqv-btn-danger) 90%, black);
+    color: #ffffff;
+  }
+}
+
+.iqv-platform-modal-delete-btn.ant-btn:not(:disabled):active {
+  background-color: color-mix(in srgb, var(--iqv-btn-danger) 80%, black);
+  border-color: color-mix(in srgb, var(--iqv-btn-danger) 80%, black);
+  color: #ffffff;
+}
+
+/* ---- Kişi (Personel) listesi satır SİL butonu (users/index.tsx) ----
+   antd `type="text"` icon-only butonun VARSAYILAN hover/focus/active'i
+   çok silikti (yalnızca çok hafif bir gri zemin) -- bu, yukarıdaki modal
+   Sil butonuyla AYNI kapsam dışı, dolgusuz ikon-only kullanım. Dinlenme
+   hâli (şeffaf zemin, `token.colorError` ikon rengi), boyutu (antd
+   `size="small"`) ve ikon hizası HİÇ DEĞİŞMEDİ -- yalnızca hover/focus-
+   visible/active'te belirgin bir kırmızı çerçeve/ring eklenir. Rest
+   hâlinde şeffaf bir `border` ÖNCEDEN tanımlanır ki çerçeve renk
+   kazandığında buton boyutu KAYMASIN (layout shift yok). Renk yeni
+   uydurulmadı -- AYNI `--iqv-btn-danger` (`token.colorError`) değişkeni,
+   bileşenin kendi `style` prop'unda sağlanır. `:focus-visible` (yalnızca
+   klavye/programatik odak) kullanılır, ham `:focus` DEĞİL -- aksi halde
+   her fare tıklamasından sonra da halka takılı kalırdı; bu proje/IQV
+   standardına daha yakın bir odak davranışıdır. */
+.iqv-person-delete-btn.ant-btn {
+  border: 1px solid transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iqv-person-delete-btn.ant-btn:not(:disabled):hover {
+    border-color: var(--iqv-btn-danger);
+    background-color: color-mix(in srgb, var(--iqv-btn-danger) 12%, transparent);
+  }
+}
+
+.iqv-person-delete-btn.ant-btn:not(:disabled):focus-visible {
+  border-color: var(--iqv-btn-danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--iqv-btn-danger) 30%, transparent);
+}
+
+.iqv-person-delete-btn.ant-btn:not(:disabled):active {
+  border-color: var(--iqv-btn-danger);
+  background-color: color-mix(in srgb, var(--iqv-btn-danger) 20%, transparent);
+}
+
+/* ---- VAZGEÇ: nötr outline -> hover/active dolu gri ---- */
+.iqv-platform-modal-cancel-btn.ant-btn {
+  border-color: var(--iqv-btn-neutral);
+  color: rgba(0, 0, 0, 0.65);
+}
+
+/* Hover YALNIZCA gerçek fare-hover destekleyen cihazlarda -- dokunmatikte
+   dokunuştan SONRA "yapışık" dolu görünüm kalmaz. */
+@media (hover: hover) and (pointer: fine) {
+  .iqv-platform-modal-cancel-btn.ant-btn:not(:disabled):hover {
+    /* Yedek: #d9d9d9 x %90 = #c3c3c3 */
+    background-color: #c3c3c3;
+    border-color: #c3c3c3;
+    background-color: color-mix(in srgb, var(--iqv-btn-neutral) 90%, black);
+    border-color: color-mix(in srgb, var(--iqv-btn-neutral) 90%, black);
+    color: rgba(0, 0, 0, 0.88);
+  }
+}
+
+.iqv-platform-modal-cancel-btn.ant-btn:not(:disabled):active {
+  /* Yedek: #d9d9d9 x %80 = #aeaeae */
+  background-color: #aeaeae;
+  border-color: #aeaeae;
+  background-color: color-mix(in srgb, var(--iqv-btn-neutral) 80%, black);
+  border-color: color-mix(in srgb, var(--iqv-btn-neutral) 80%, black);
+  color: rgba(0, 0, 0, 0.88);
+}
+
+/* ---- GÜNCELLE: mavi outline -> hover/active dolu mavi ---- */
+.iqv-platform-modal-submit-btn.ant-btn {
+  border-color: var(--iqv-btn-blue);
+  color: var(--iqv-btn-blue);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iqv-platform-modal-submit-btn.ant-btn:not(:disabled):hover {
+    /* Yedek: #4a6fa5 x %90 = #436495 */
+    background-color: #436495;
+    border-color: #436495;
+    background-color: color-mix(in srgb, var(--iqv-btn-blue) 90%, black);
+    border-color: color-mix(in srgb, var(--iqv-btn-blue) 90%, black);
+    color: #ffffff;
+  }
+}
+
+.iqv-platform-modal-submit-btn.ant-btn:not(:disabled):active {
+  /* Yedek: #4a6fa5 x %80 = #3b5984 */
+  background-color: #3b5984;
+  border-color: #3b5984;
+  background-color: color-mix(in srgb, var(--iqv-btn-blue) 80%, black);
+  border-color: color-mix(in srgb, var(--iqv-btn-blue) 80%, black);
+  color: #ffffff;
+}
+
+/* Devre dışı: hover/active zaten `:not(:disabled)` ile kapalı; antd'nin
+   kendi nötr disabled görünümü KORUNUR. */
+.iqv-platform-modal-delete-btn.ant-btn:disabled,
+.iqv-platform-modal-cancel-btn.ant-btn:disabled,
+.iqv-platform-modal-submit-btn.ant-btn:disabled {
+  background-color: rgba(0, 0, 0, 0.04);
+  border-color: #d9d9d9;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* =====================================================================
+   "PERSONEL OLUŞTUR" YÜZEN AKSİYON BUTONU -- Kişiler tablosunun altında.
+   IQV Platform'un GERÇEK referans bileşeninden (Platform Frontend/
+   dashboard/src/index.css, `.iqv-people-fab` bloğu) BİREBİR taşınmıştır.
+   Dinlenmede BEYAZ yüzey + ince nötr kenarlık + kare-yuvarlatılmış köşe;
+   dolgu YALNIZCA hover/active'te -- yukarıdaki `.iqv-platform-modal-*`
+   blokları ile AYNI buton durum deseni, ikinci bir tasarım dili
+   KURULMADI. Boyut/ikon/gölge JSX'teki satır içi stilden gelir; bu blok
+   yalnızca renk/dolgu davranışını yönetir.
+
+   RENK: yeni renk UYDURULMADI. `--iqv-btn-blue` = #4a6fa5, projenin
+   "Kaydet/Güncelle" mavisiyle (`.iqv-platform-modal-submit-btn`) AYNI
+   değişken ve AYNI hover/active oranları (%90 / %80). */
+.iqv-app-layout .iqv-people-fab.ant-btn .anticon {
+  font-size: 22px;
+}
+
+.iqv-app-layout .iqv-people-fab.ant-btn {
+  --iqv-btn-blue: #4a6fa5;
+  background-color: var(--colorNeutralBackground1, #ffffff);
+  border-color: var(--colorNeutralStroke1, #d1d1d1);
+  color: var(--iqv-btn-blue);
+  text-shadow: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iqv-app-layout .iqv-people-fab.ant-btn:not(:disabled):hover {
+    /* Yedek: #4a6fa5 x %90 = #436495 */
+    background-color: #436495;
+    border-color: #436495;
+    background-color: color-mix(in srgb, var(--iqv-btn-blue) 90%, black);
+    border-color: color-mix(in srgb, var(--iqv-btn-blue) 90%, black);
+    color: #ffffff;
+  }
+}
+
+.iqv-app-layout .iqv-people-fab.ant-btn:not(:disabled):active {
+  /* Yedek: #4a6fa5 x %80 = #3b5984 */
+  background-color: #3b5984;
+  border-color: #3b5984;
+  background-color: color-mix(in srgb, var(--iqv-btn-blue) 80%, black);
+  border-color: color-mix(in srgb, var(--iqv-btn-blue) 80%, black);
+  color: #ffffff;
+}
+
+/* =====================================================================
+   PERSONEL LISTESI -- BASLIK/ARAMA SATIRI RESPONSIVE DUZELTMESI (Turn 6).
+
+   IQV Platform'daki GERCEK Ayarlar > Kisiler panelinde (Platform
+   Frontend/dashboard/src/components/layout/layout.css,
+   `.iqv-settings-header-actions` / `.iqv-settings-search`) belgelenen KOK
+   NEDEN ile BIREBIR AYNI sorun Dictionary'nin Personel listesinde de
+   vardi:
+     1) Sag aksiyon grubu, dis satirin (justify-between) bir FLEX
+        OGESIDIR; flex ogeleri varsayilan `min-width: auto` ile icerigin
+        min-content genisliginin ALTINA KUCULEMEZ. Icerik sabit 240px
+        arama kutusu oldugundan, grup dar ekranda kartin ic genisligini
+        asiyordu.
+     2) Arama kutusunun genisligi INLINE stil (`width: 240`) ile
+        veriliyordu; inline stil CSS'ten daha oncelikli oldugu icin
+        hicbir kucultme kurali devreye giremiyordu.
+
+   Cozum yalnizca bu iki secicidir; Personel disindaki sayfalar ve genel
+   `.ant-input`/SearchBox stilleri ETKILENMEZ. Ikon (prefix), placeholder,
+   yukseklik, kenarlik ve renk DEGISMEZ -- yalnizca genislik/kucultme
+   davranisi. Masaustunde `.iqv-people-search` yine 240px'tir (asagidaki
+   taban kural), yani MASAUSTU GORUNUMU AYNI KALIR. */
+.iqv-people-header-actions {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.iqv-people-search {
+  /* Masaustu/tablet: onceki inline deger ile BIREBIR ayni. */
+  width: 240px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Telefon (projenin GERCEK mobil esigi, diger tum kurallarla AYNI 768px --
+   bkz. layout.css HEADER SAĞ AKSİYON GRUBU bölümü ve useBreakpoint
+   varsayilan degeri): arama kutusu satirin kalan alanina kucalir; sabit
+   240px'e KILITLENMEZ. `flex-basis: 100%` ile kendi satirina gecer --
+   Platform'daki `.iqv-settings-search` mobil kuraliyla BIREBIR AYNI. */
+@media (max-width: 767px) {
+  .iqv-people-header-actions {
+    width: 100%;
+  }
+
+  .iqv-people-search {
+    width: 100%;
+    flex: 1 1 100%;
   }
 }

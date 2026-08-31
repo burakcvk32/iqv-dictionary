@@ -1,0 +1,1033 @@
+openapi: 3.0.3
+info:
+  title: IQV Dictionary API
+  version: 1.0.0
+  description: |
+    IQV Dictionary servislerinin API dokümantasyonu.
+
+    Bu dokümantasyon, repodaki gerçek backend kodundan (routes/controllers/
+    middleware/validation) çıkarılmıştır; kodda karşılığı olmayan hiçbir
+    endpoint eklenmemiştir.
+
+    ## API Summary
+
+    {{API_SUMMARY}}
+
+    ## Classification
+
+    **INTERNAL APIs** — IQV Dictionary uygulamasının kendi iş
+    süreçlerinde kullandığı dahili business API operasyonlarıdır
+    (Dictionary terim CRUD'u + Kişi/Personel CRUD'u).
+
+    **EXTERNAL APIs** — Dış sistemler veya harici istemciler tarafından
+    tüketilebilen API operasyonlarıdır. Bu projede tek karşılığı, eski
+    Node-RED entegrasyonu için tutulan `POST /list-dictionary` ve
+    `POST /create-dictionary` uyumluluk uçlarıdır (`legacy.routes.ts`) —
+    aynı Dictionary servisine delege eder, ikinci bir iş mantığı içermez.
+
+    **SYSTEM APIs** — Kimlik doğrulama, sağlık kontrolü ve teknik
+    altyapı servisleridir (`/api/v1/auth/*`, `/health`).
+
+    Her operasyon **TOTAL APIs** grubunda VE kendi sınıflandırma grubunda
+    görünür; bu bilinçli bir sunum tekrarıdır ancak API Summary
+    sayımında operasyon mükerrer sayılmaz.
+
+    Gruplar iki seviyelidir: kök grup (TOTAL / INTERNAL / EXTERNAL /
+    SYSTEM) altında iş alanı (Health, Auth, Dictionary, People) yer alır.
+    Sınıflandırma tek kaynaktan gelir: her operasyondaki
+    `x-iqv-classification` ve `x-iqv-domain` alanları.
+
+    ## Authentication
+
+    Kimlik doğrulama JWT Bearer token ile yapılır (`Authorization: Bearer
+    <token>`). Token, `POST /api/v1/auth/login` ile alınır.
+
+    - **Auth yok (public):** `POST /api/v1/auth/login`, `GET /health`
+    - **Zorunlu JWT:** Diğer tüm endpoint'ler (`GET /api/v1/auth/me` dahil)
+
+    JWT doğrulandıktan sonra backend, uygulama-içi bir izin (permission)
+    sistemiyle ikinci bir yetki kontrolü yapar (`middleware/auth.ts` ->
+    `requirePermission` / `requireAnyPermission`). Gerekli izin(ler) her
+    operasyonun açıklamasında belirtilmiştir. Bu ayrıntılı izin kuralı,
+    OAuth2 "scope" mekanizması OLMADIĞI için (JWT burada düz Bearer/HS256'dır,
+    scope claim'i kullanılmaz) `security` şemasında ayrı scope olarak DEĞİL,
+    operasyon açıklamalarında düz metin olarak belirtilir.
+
+    ## Environment Dependencies
+
+    API davranışını etkileyen ortam değişkenleri (gerçek `config/env.ts`
+    kaynağından, YALNIZCA isimler — hiçbir gerçek değer/secret burada YER
+    ALMAZ):
+
+    - `MONGODB_URI`, `MONGODB_DB`, `MONGODB_USERS_COLLECTION`,
+      `MONGODB_DICTIONARY_COLLECTION` — ana veri katmanı
+    - `JWT_SECRET`, `JWT_EXPIRES_IN` — token imzalama/geçerlilik süresi
+    - `CORS_ORIGIN`, `PORT` — HTTP katmanı
+    - `VITE_API_BASE_URL` (dashboard) — frontend'in backend'e ulaştığı temel
+      adres; Vite dev sunucusunda `/api` isteklerini gerçek backend'e ileten
+      proxy zaten yapılandırılıdır (bkz. Servers).
+
+    ## Servers
+
+    Aşağıdaki `servers` girişi bilerek **relative** (`/`) bırakılmıştır —
+    IP/host hiçbir yerde hardcode edilmemiştir. Swagger UI, bu sayfayı hangi
+    adresten açarsanız açın (`localhost:5173` veya LAN IP'si) "Try it out"
+    isteklerini AYNI origin'e gönderir; Vite dev sunucusundaki mevcut `/api`
+    proxy'si bu istekleri gerçek backend'e (varsayılan `localhost:3001`,
+    Docker'da `VITE_DEV_API_PROXY_TARGET`) iletir. Bu davranış bu dokümanı
+    eklerken DEĞİŞTİRİLMEDİ, yalnızca `/health`, `/list-dictionary` ve
+    `/create-dictionary` için de aynı proxy'ye üç küçük ek kural eklendi
+    (bkz. `vite.config.ts`) — böylece TÜM belgelenen endpoint'lerde "Try it
+    out" gerçekten çalışır.
+servers:
+  - url: /
+    description: Bu sunucu
+tags:
+  - name: Health
+    description: Sağlık kontrolü — kimlik doğrulama gerektirmez.
+  - name: Auth
+    description: Giriş ve oturum doğrulama.
+  - name: Dictionary
+    description: >-
+      İngilizce/Türkçe sözlük terimleri (liste, istatistik, alt grup,
+      CRUD). `GET /api/v1/dictionary` ve `POST /api/v1/dictionary`,
+      Ayarlar (Settings) ekranı tarafından da (kendi backend route'u
+      olmadığı için) doğrudan kullanılır — bkz. ilgili operasyonların
+      açıklaması.
+  - name: People
+    description: >-
+      Personel/kullanıcı kayıtları (dashboard'daki "Kişi" ekranı). Gerçek
+      route öneki `/api/v1/users`dır; backend modül klasörü `people`,
+      izin anahtarları `users.*` biçimindedir.
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      x-iqv-classification: SYSTEM
+      x-iqv-domain: Health
+      summary: Servis sağlık kontrolü
+      description: Servisin ayakta olup olmadığını döner. Kimlik doğrulama gerektirmez.
+      security: []
+      responses:
+        '200':
+          description: Servis çalışıyor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                success: true
+                data: { status: ok }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      x-iqv-classification: SYSTEM
+      x-iqv-domain: Auth
+      summary: Giriş yapar
+      description: Kullanıcı adı/parola ile giriş yapar ve bir JWT döner. Kimlik doğrulama gerektirmez.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Giriş başarılı.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Kullanıcı adı veya parola hatalı, ya da hesap pasif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Gönderilen alanlar eksik/geçersiz.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      x-iqv-classification: SYSTEM
+      x-iqv-domain: Auth
+      summary: Geçerli oturumu doğrular
+      description: >-
+        Elindeki token'ı backend'e doğrulatır ve güncel kullanıcı bilgisini
+        döner. Frontend, korumalı bir sayfa render etmeden ÖNCE bu uca
+        istek atar ("protected page flash" düzeltmesi). Zorunlu JWT.
+      responses:
+        '200':
+          description: Token geçerli.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, user]
+                properties:
+                  success: { type: boolean, example: true }
+                  user:
+                    $ref: '#/components/schemas/SafeUser'
+        '401':
+          description: Token eksik, geçersiz veya süresi dolmuş.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/dictionary:
+    get:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Sözlük terimlerini listeler
+      description: >-
+        Sayfalı/aranabilir terim listesi. `dictionary.read` **veya**
+        `settings.read` izinlerinden biri yeterlidir (Ayarlar ekranı bu
+        endpoint'i paylaşır). Zorunlu JWT.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - name: group
+          in: query
+          description: 'Gruba göre filtre (ör. "IQV OS AI", "Endüstriyel").'
+          schema: { type: string }
+        - name: subgroup
+          in: query
+          description: Alt gruba göre filtre.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Başarılı.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DictionaryListResponse'
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.read/settings.read izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Yeni terim oluşturur
+      description: >-
+        Yeni bir sözlük terimi oluşturur. `dictionary.create` **veya**
+        `settings.update` izinlerinden biri yeterlidir (Ayarlar ekranı bu
+        endpoint'i paylaşır). Aynı grup/alt grup içinde aynı İngilizce
+        terim zaten varsa 409 döner. Zorunlu JWT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DictionaryCreateInput'
+      responses:
+        '201':
+          description: Oluşturuldu.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictionarySingleResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.create/settings.update izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Aynı grup/alt grupta aynı İngilizce terim zaten var.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Gönderilen alanlar eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/dictionary/stats:
+    get:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Sözlük istatistiklerini döner
+      description: >-
+        Toplam terim sayısı, grup bazlı sayımlar ve alt grup dağılımı.
+        `dictionary.read` izni gerekir. Zorunlu JWT.
+      responses:
+        '200':
+          description: Başarılı.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/DictionaryStats' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.read izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/dictionary/subgroups:
+    get:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Bir gruba ait alt grupları listeler
+      description: >-
+        Verilen `group` için gerçekten kullanılan alt grup adlarını döner
+        (Ayarlar ekranındaki "Alt Grup" seçim kutusu bu ucu kullanır).
+        `dictionary.read` **veya** `settings.read` izinlerinden biri
+        yeterlidir. Zorunlu JWT.
+      parameters:
+        - name: group
+          in: query
+          required: true
+          description: Alt grupları listelenecek grup adı.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Başarılı.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { type: string }
+        '400':
+          description: group parametresi eksik.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.read/settings.read izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/dictionary/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DictionaryId'
+    get:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Tek bir terimi getirir
+      description: 'ID ile tek bir sözlük terimi döner. `dictionary.read` izni gerekir. Zorunlu JWT.'
+      responses:
+        '200':
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictionarySingleResponse' }
+        '400':
+          description: Geçersiz kayıt kimliği.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.read izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Kayıt bulunamadı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    put:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Terimi günceller (tam)
+      description: 'Bir sözlük terimini günceller. `dictionary.update` izni gerekir. Zorunlu JWT.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DictionaryUpdateInput' }
+      responses:
+        '200':
+          description: Güncellendi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictionarySingleResponse' }
+        '400':
+          description: Geçersiz kayıt kimliği.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.update izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Kayıt bulunamadı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Aynı grup/alt grupta aynı İngilizce terim zaten var.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Gönderilen alanlar geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Terimi günceller (kısmi)
+      description: 'PUT ile aynı iş mantığı — kısmi güncelleme. `dictionary.update` izni gerekir. Zorunlu JWT.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DictionaryUpdateInput' }
+      responses:
+        '200':
+          description: Güncellendi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictionarySingleResponse' }
+        '400':
+          description: Geçersiz kayıt kimliği.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.update izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Kayıt bulunamadı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Aynı grup/alt grupta aynı İngilizce terim zaten var.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Gönderilen alanlar geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    delete:
+      tags: [Dictionary]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: Dictionary
+      summary: Terimi siler
+      description: 'Bir sözlük terimini siler. `dictionary.delete` izni gerekir. Zorunlu JWT.'
+      responses:
+        '200':
+          description: Silindi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteResponse' }
+        '400':
+          description: Geçersiz kayıt kimliği.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: dictionary.delete izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Kayıt bulunamadı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/users:
+    get:
+      tags: [People]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: People
+      summary: Personel/kullanıcı kayıtlarını listeler
+      description: >-
+        Sayfalı/aranabilir personel listesi. `users.read` izni gerekir.
+        Rolü `user` olan (yönetici-katmanı olmayan) bir hesap, izin
+        verilmiş olsa bile yalnızca KENDİ kaydını görür (satır bazlı
+        kısıtlama, backend'de zorlanır). Zorunlu JWT.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonListResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: users.read izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      tags: [People]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: People
+      summary: Yeni personel oluşturur
+      description: '"Personel Oluştur" ekranı. `users.create` izni gerekir. Aynı kullanıcı adı zaten varsa 409 döner. Zorunlu JWT.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonCreateInput' }
+      responses:
+        '201':
+          description: Oluşturuldu.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonSingleResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: users.create izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Bu kullanıcı adı zaten kullanılıyor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Gönderilen alanlar eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    put:
+      tags: [People]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: People
+      summary: Personeli günceller (tam)
+      description: >-
+        `users.update` izni gerekir. Rolü `user` olan bir hesap kendi
+        kaydını düzenlerken kendi rolünü/durumunu/erişim yetkilerini
+        DEĞİŞTİREMEZ (yetki yükseltme engeli) — bu durumda 403 döner.
+        Zorunlu JWT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonUpdateInput' }
+      responses:
+        '200':
+          description: Güncellendi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonSingleResponse' }
+        '400':
+          description: Geçersiz kullanıcı kimliği.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: users.update izni yok veya kendi-hesabında yetki yükseltme engeli.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Kayıt bulunamadı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Bu kullanıcı adı zaten kullanılıyor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Gönderilen alanlar geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      tags: [People]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: People
+      summary: Personeli günceller (kısmi)
+      description: 'PUT ile aynı iş mantığı — kısmi güncelleme. `users.update` izni gerekir. Zorunlu JWT.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonUpdateInput' }
+      responses:
+        '200':
+          description: Güncellendi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonSingleResponse' }
+        '400':
+          description: Geçersiz kullanıcı kimliği.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: users.update izni yok veya kendi-hesabında yetki yükseltme engeli.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Kayıt bulunamadı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Bu kullanıcı adı zaten kullanılıyor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Gönderilen alanlar geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    delete:
+      tags: [People]
+      x-iqv-classification: INTERNAL
+      x-iqv-domain: People
+      summary: Personeli siler
+      description: '`users.delete` izni gerekir. Zorunlu JWT.'
+      responses:
+        '200':
+          description: Silindi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteResponse' }
+        '400':
+          description: Geçersiz kullanıcı kimliği.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: users.delete izni yok.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Kayıt bulunamadı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /list-dictionary:
+    post:
+      tags: [Dictionary]
+      x-iqv-classification: EXTERNAL
+      x-iqv-domain: Dictionary
+      summary: 'Sözlük terimlerini listeler (legacy Node-RED uyumluluk ucu)'
+      description: >-
+        **EXTERNAL API.** Eski Node-RED entegrasyonu için tutulan uyumluluk
+        ucu — `GET /api/v1/dictionary` ile AYNI `DictionaryService`'i
+        kullanır, ikinci bir iş mantığı içermez. Yeni entegrasyonlar
+        `/api/v1/dictionary` kullanmalıdır. Zorunlu JWT.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Liste sorgusu (query string yerine gövdede gönderilir).
+              properties:
+                page: { type: integer, example: 1 }
+                limit: { type: integer, example: 20 }
+                search: { type: string }
+                group: { type: string }
+                subgroup: { type: string }
+      responses:
+        '200':
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictionaryListResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /create-dictionary:
+    post:
+      tags: [Dictionary]
+      x-iqv-classification: EXTERNAL
+      x-iqv-domain: Dictionary
+      summary: 'Yeni terim oluşturur (legacy Node-RED uyumluluk ucu)'
+      description: >-
+        **EXTERNAL API.** Eski Node-RED entegrasyonu için tutulan uyumluluk
+        ucu — `POST /api/v1/dictionary` ile AYNI `DictionaryService`'i
+        kullanır. Yeni entegrasyonlar `/api/v1/dictionary` kullanmalıdır.
+        Zorunlu JWT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DictionaryCreateInput'
+      responses:
+        '201':
+          description: Oluşturuldu.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictionarySingleResponse' }
+        '401':
+          description: Yetkilendirme başlığı eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Gönderilen alanlar eksik/geçersiz.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: 'Sayfa numarası (varsayılan: 1).'
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      description: 'Sayfa başına kayıt sayısı (üst sınır: 100).'
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Search:
+      name: search
+      in: query
+      description: Serbest metin arama.
+      schema: { type: string }
+    DictionaryId:
+      name: id
+      in: path
+      required: true
+      description: Sözlük terimi Mongo ObjectId'si.
+      schema: { type: string, example: 64f1c2b8e1a2b3c4d5e6f789 }
+    PersonId:
+      name: id
+      in: path
+      required: true
+      description: Kullanıcı/personel Mongo ObjectId'si.
+      schema: { type: string, example: 64f1c2b8e1a2b3c4d5e6f789 }
+  schemas:
+    Pagination:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 20 }
+        total: { type: integer, example: 42 }
+        totalPages: { type: integer, example: 3 }
+    FieldError:
+      type: object
+      properties:
+        field: { type: string, example: english_term }
+        message: { type: string, example: İngilizce terim zorunludur. }
+    ErrorResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: Kayıt bulunamadı. }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldError' }
+    HealthResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          properties:
+            status: { type: string, example: ok }
+    DeleteResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { nullable: true, example: null }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    SafeUser:
+      type: object
+      description: Parola alanı hiçbir zaman API yanıtında yer almaz.
+      properties:
+        _id: { type: string }
+        username: { type: string }
+        full_name: { type: string }
+        email: { type: string }
+        role: { type: string, example: admin }
+        permissions:
+          type: array
+          items: { type: string }
+        company_id: { type: string }
+        organization_id: { type: string }
+        company_name: { type: string }
+        status: { type: string, example: active }
+    LoginResponse:
+      type: object
+      required: [success, token, user]
+      properties:
+        success: { type: boolean, example: true }
+        token: { type: string }
+        user: { $ref: '#/components/schemas/SafeUser' }
+    DictionaryTerm:
+      type: object
+      properties:
+        _id: { type: string }
+        english_term: { type: string }
+        turkish_term: { type: string }
+        description: { type: string }
+        group: { type: string, example: IQV OS AI }
+        subgroup: { type: string }
+        created_by_id: { type: string }
+        updated_by_id: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    DictionaryCreateInput:
+      type: object
+      required: [english_term, turkish_term, description, group]
+      properties:
+        english_term: { type: string, maxLength: 200 }
+        turkish_term: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        group: { type: string, maxLength: 100 }
+        subgroup: { type: string, maxLength: 100 }
+    DictionaryUpdateInput:
+      type: object
+      description: Tüm alanlar opsiyoneldir; en az bir alan gönderilmelidir.
+      properties:
+        english_term: { type: string, maxLength: 200 }
+        turkish_term: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        group: { type: string, maxLength: 100 }
+        subgroup: { type: string, maxLength: 100 }
+    DictionaryListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/DictionaryTerm' }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+    DictionarySingleResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/DictionaryTerm' }
+    DictionarySubgroupCount:
+      type: object
+      properties:
+        name: { type: string }
+        count: { type: integer }
+    DictionaryStats:
+      type: object
+      properties:
+        total: { type: integer }
+        iqv_os_ai: { type: integer }
+        industrial: { type: integer }
+        subgroups:
+          type: array
+          items: { $ref: '#/components/schemas/DictionarySubgroupCount' }
+    Person:
+      type: object
+      properties:
+        _id: { type: string }
+        username: { type: string }
+        full_name: { type: string }
+        email: { type: string }
+        phone: { type: string, nullable: true }
+        role: { type: string, example: admin }
+        status: { type: string, example: active }
+        permissions:
+          type: array
+          items: { type: string }
+        company_id: { type: string }
+        organization_id: { type: string }
+        company_name: { type: string }
+        telegram_id: { type: string, nullable: true }
+    PersonCreateInput:
+      type: object
+      required: [username, password, full_name, email]
+      properties:
+        username: { type: string, maxLength: 100 }
+        password: { type: string, format: password, description: Minimum karakter sınırı yoktur (Platform ile aynı kural). }
+        full_name: { type: string, maxLength: 200 }
+        email: { type: string, maxLength: 200 }
+        phone: { type: string, maxLength: 30, nullable: true }
+        telegram_id: { type: string, maxLength: 64, nullable: true }
+        company_name: { type: string }
+        role:
+          type: string
+          enum: [superadmin, companyadmin, organizationadmin, admin, user]
+          default: user
+        status:
+          type: string
+          enum: [active, aktif, inactive, passive, pasif]
+          default: active
+        permissions:
+          type: array
+          items:
+            type: string
+            enum:
+              - users.read
+              - users.create
+              - users.update
+              - users.delete
+              - settings.read
+              - settings.update
+              - dictionary.read
+              - dictionary.create
+              - dictionary.update
+              - dictionary.delete
+    PersonUpdateInput:
+      type: object
+      description: Tüm alanlar opsiyoneldir; gönderilmeyen alan değiştirilmez.
+      properties:
+        username: { type: string, maxLength: 100 }
+        password: { type: string, format: password, description: Yalnızca dolu gönderilirse değiştirilir. }
+        full_name: { type: string, maxLength: 200 }
+        email: { type: string, maxLength: 200 }
+        phone: { type: string, maxLength: 30, nullable: true }
+        telegram_id: { type: string, maxLength: 64, nullable: true }
+        company_name: { type: string }
+        role:
+          type: string
+          enum: [superadmin, companyadmin, organizationadmin, admin, user]
+        status:
+          type: string
+          enum: [active, aktif, inactive, passive, pasif]
+        permissions:
+          type: array
+          items:
+            type: string
+            enum:
+              - users.read
+              - users.create
+              - users.update
+              - users.delete
+              - settings.read
+              - settings.update
+              - dictionary.read
+              - dictionary.create
+              - dictionary.update
+              - dictionary.delete
+    PersonListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Person' }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+    PersonSingleResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/Person' }

@@ -1,0 +1,71 @@
+# ============================================================
+# Repo-wide safety net .gitignore.
+# dashboard/.gitignore and backend/.gitignore contain the same
+# rules scoped to each subproject; this file is a root-level
+# backstop so nothing generated slips in regardless of where a
+# command is run from.
+# ============================================================
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+dev-dist/
+
+# Test / coverage results
+coverage/
+*.lcov
+junit.xml
+test-results/
+
+# Raw k6 performance results (curated markdown reports under
+# docs/testing/ are tracked; raw JSON output is not)
+backend/tests/performance/results/
+
+# Environment files - real secrets must never enter Git.
+# .env.example is explicitly re-included below (names only, no values).
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Scratch / cleanup staging directories (see repo README before deleting)
+_to_delete/
+
+# Stray Vite dev-server crash dumps (not real source)
+vite.config.ts.timestamp-*.mjs
+vitest.config.ts.timestamp-*.mjs
+
+# MkDocs build output
+site/
+
+# IQV Dictionary install/update/uninstall lifecycle state (local only)
+.iqv-install/

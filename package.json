@@ -1,0 +1,17 @@
+{
+  "name": "iqv-dictionary",
+  "private": true,
+  "version": "1.1.0",
+  "description": "IQV Dictionary — root convenience aliases: production Docker Compose stack commands, plus a local (Docker-less) `dev` script that runs backend + frontend hot-reload dev servers together (see scripts/common/dev.js). Application code lives in backend/ and dashboard/; install/update/uninstall lifecycle logic lives in scripts/windows and scripts/linux (this file intentionally does not duplicate that — see README.md \"Directory Structure\").",
+  "scripts": {
+    "docker:build": "docker compose -f docker-compose.prod.yml --env-file .env build",
+    "docker:up": "docker compose -f docker-compose.prod.yml --env-file .env up -d",
+    "docker:down": "docker compose -f docker-compose.prod.yml --env-file .env down",
+    "docker:logs": "docker compose -f docker-compose.prod.yml logs -f",
+    "dev": "node scripts/common/dev.js",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix dashboard",
+    "dev:up": "docker compose up -d",
+    "dev:down": "docker compose down"
+  }
+}

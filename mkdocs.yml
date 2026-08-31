@@ -1,0 +1,30 @@
+site_name: Dictionary Projesi Dokümantasyonu
+site_description: Dictionary (Türkçe/İngilizce terminoloji sözlüğü) projesi geliştirici dokümantasyonu — Git/CI, test ve sürüm hazırlık süreçleri.
+repo_url: https://github.com/iqvizyon-development/iqv-react-dashboard
+repo_name: iqv-react-dashboard
+docs_dir: docs
+
+nav:
+  - Ana Sayfa: index.md
+  - Kurulum / Dağıtım:
+      - Kurulum / Güncelleme / Kaldırma: deployment/installation.md
+  - Geliştirme:
+      - Git ve CI: development/git-ci.md
+      - Test: development/testing.md
+      - Performans Testi: development/performance-testing.md
+      - Sürüm Kontrol Listesi: development/release-checklist.md
+  - Test Raporları:
+      - Test Raporu: testing/TEST_REPORT.md
+      - Performans Raporu: testing/PERFORMANCE_REPORT.md
+      - UAT Raporu: testing/UAT_REPORT.md
+
+theme:
+  name: readthedocs
+
+markdown_extensions:
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+
+strict: true

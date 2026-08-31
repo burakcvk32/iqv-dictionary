@@ -1,32 +1,19 @@
 import { AxiosError } from 'axios';
 import { toast } from 'sonner';
-import { User } from '../interfaces/models/user';
 
-export const API_URL = `https://reqres.in/api`;
-export const REQRES_API_KEY = import.meta.env.VITE_REQRES_API_KEY ?? '';
-
-export const getMissingReqresApiKeyMessage = () => {
-  if (import.meta.env.PROD) {
-    return 'Missing ReqRes API key. Add VITE_REQRES_API_KEY in your hosting provider environment variables, then redeploy the app.';
-  }
-
-  return 'Missing ReqRes API key. Add VITE_REQRES_API_KEY to dashboard/.env and restart the dev server.';
-};
-
-export const getUserAvatarUrl = (
-  user: Pick<User, 'id' | 'first_name' | 'last_name' | 'email'>,
-) => {
-  const name =
-    `${user.first_name} ${user.last_name}`.trim() || user.email || 'User';
-  const background = CONFIG.theme.accentColor.replace('#', '');
-
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${background}&color=fff&size=128&bold=true`;
-};
-
-export const normalizeUser = (user: User): User => ({
-  ...user,
-  avatar: getUserAvatarUrl(user),
-});
+// Base URL for the IQV Dashboard's own backend (Dictionary, People, and
+// other real modules).
+//
+// DEV: her zaman BOŞ (relative) — istekler `/api/v1/...` şeklinde, sayfanın
+// KENDİ origin'ine (localhost:5173 VEYA LAN IP'si:5173, hangisiyle açıldıysa
+// onunla) gider; Vite'ın kendi `/api` proxy'si (bkz. vite.config.ts) bunu
+// sunucu tarafında gerçek backend'e (localhost:3001) iletir. Böylece LAN'dan
+// açılan bir istemci, kendi yerel localhost'una YANLIŞLIKLA istek atmaz —
+// `VITE_API_BASE_URL` dev'de KASITLI olarak yok sayılır.
+// PROD: `VITE_API_BASE_URL` (build-time env) kullanılır — davranış değişmedi.
+export const API_BASE_URL = import.meta.env.DEV
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001');
 
 export enum NotificationType {
   ERROR = 'error',
@@ -84,3 +71,24 @@ export const handleErrorResponse = (
     return callback();
   }
 };
+
+// "Personeli Güncelle" modalındaki "Güncelle" aksiyon butonunun GÖRÜNÜMÜ --
+// IQV Platform'un GERÇEK referans bileşeninden (Platform Frontend/dashboard/
+// src/components/settings/PersonnelFormModal.tsx, `SAVE_BUTTON_STYLE`)
+// BİREBİR aynı değerlerle taşınmıştır. Bilinçli olarak yalnızca GÖRÜNÜM
+// burada tutulur; submit/loading/disabled ve API çağrısı davranışı
+// bileşende olduğu gibi kalır.
+export const SAVE_BUTTON_STYLE = {
+  borderRadius: 6,
+  height: 32,
+  paddingInline: 16,
+  fontWeight: 500,
+} as const;
+
+// "Erişim ve Yetkiler" tetikleyici alanının köşe yuvarlaklığı -- IQV
+// Platform'un GERÇEK referans sabitinden (Platform Frontend/dashboard/src/
+// utils/index.tsx, `PAGE_CARD_RADIUS`) BİREBİR aynı değerle taşınmıştır.
+// Platform'da bu sabit PersonnelFormModal.tsx'teki "Erişim ve Yetkiler"
+// tetikleyici butonunun `borderRadius`'unda da AYNEN kullanılır (bkz.
+// components/users/PersonEditModal.tsx).
+export const PAGE_CARD_RADIUS = 8;

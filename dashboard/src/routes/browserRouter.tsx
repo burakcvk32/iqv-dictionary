@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AuthLayout from '../components/auth/AuthLayout';
 import ErrorPage from '../components/errorPage';
 import Layout from '../components/layout';
@@ -8,16 +8,19 @@ import { webRoutes } from './web';
 import loadable from '@loadable/component';
 import ProgressBar from '../components/loader/progressBar';
 import RequireAuth from './requireAuth';
+import RequirePermission from './requirePermission';
 import Login from '../components/auth/Login';
-import About from '../components/demo-pages/about';
 
 const errorElement = <ErrorPage />;
 const fallbackElement = <ProgressBar />;
 
-const Dashboard = loadable(() => import('../components/dashboard'), {
+const Users = loadable(() => import('../components/users'), {
   fallback: fallbackElement,
 });
-const Users = loadable(() => import('../components/users'), {
+const Dictionary = loadable(() => import('../components/dictionary'), {
+  fallback: fallbackElement,
+});
+const Settings = loadable(() => import('../components/settings'), {
   fallback: fallbackElement,
 });
 
@@ -50,16 +53,41 @@ export const browserRouter = createBrowserRouter([
     errorElement: errorElement,
     children: [
       {
+        // Dashboard demo/template page removed; keep the old address alive
+        // as a redirect to the current landing page instead of rendering
+        // dead template content.
         path: webRoutes.dashboard,
-        element: <Dashboard />,
+        element: <Navigate to={webRoutes.dictionary} replace />,
       },
       {
         path: webRoutes.users,
-        element: <Users />,
+        element: (
+          <RequirePermission permission="users.read">
+            <Users />
+          </RequirePermission>
+        ),
       },
       {
-        path: webRoutes.about,
-        element: <About />,
+        path: webRoutes.dictionary,
+        element: (
+          <RequirePermission permission="dictionary.read">
+            <Dictionary />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: webRoutes.settings,
+        element: (
+          <RequirePermission permission="settings.read">
+            <Settings />
+          </RequirePermission>
+        ),
+      },
+      {
+        // Legacy misspelled route: alias/redirect to the canonical page,
+        // no second implementation.
+        path: webRoutes.dictionaryLegacy,
+        element: <Navigate to={webRoutes.dictionary} replace />,
       },
     ],
   },

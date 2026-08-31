@@ -1,0 +1,53 @@
+# ============================================================
+# IQV Dictionary backend — PRODUCTION image.
+#
+# Multi-stage build: dependency install + TypeScript compilation happen
+# in a throwaway `builder` stage; only the compiled output (dist/) and
+# production dependencies ship in the final image. Unlike ./Dockerfile
+# (kept as-is — it backs the existing hot-reload docker-compose.yml dev
+# workflow, see that file's own comments), this image NEVER runs
+# `npm run dev` / tsx watch: it runs the compiled build with plain
+# `node`, which is the project's own existing production entrypoint
+# (package.json "start": "node dist/server.js").
+#
+# Used by docker-compose.prod.yml (scripts/windows/install.ps1 and
+# scripts/linux/install.sh, `-Mode docker`).
+# ============================================================
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# ---- production runtime ----
+FROM node:20-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY --from=builder /app/dist ./dist
+
+# IQV Dictionary Swagger / OpenAPI tek dogruluk kaynagi -- `dist/` gibi
+# derlenmis kod DEGIL, statik bir veri dosyasi (+ ozel gruplama JS'i)
+# oldugu icin `tsc` tarafindan `dist/`e KOPYALANMAZ; runtime asamasina
+# AYRICA kopyalanmazsa `backend/src/docs/swagger.ts` (bkz. o dosya)
+# `fs.readFileSync` ile bu dosyayi ARAYAMAZ ve `/api-docs`/`/openapi.json`
+# production'da CALISMAZ.
+COPY --from=builder /app/docs ./docs
+
+# Real, existing port (backend/.env PORT=3001 — see src/config/env.ts),
+# not invented for this task.
+EXPOSE 3001
+
+# Real, existing endpoint (src/app.ts `GET /health`) — the same one
+# .github/workflows/test-deploy.yml already smoke-tests.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${PORT:-3001}/health" || exit 1
+
+CMD ["node", "dist/server.js"]

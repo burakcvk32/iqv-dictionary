@@ -1,0 +1,379 @@
+name: CI
+
+# NOT (CI hazirlik denetimi, 2026-08-30): bu dosyanin adi ("Test
+# Deployment") ve tetikleyicisi (yalnizca `pull_request`) korunmustu, ama
+# platform GITHUB ACTIONS zaten mevcuttu (bkz. dependabot.yml,
+# origin=GitHub) -- YENI bir CI platformu EKLENMEDI, yalnizca ayni
+# platformdaki mevcut dosya genisletildi. `push` (main) ve manuel
+# `workflow_dispatch` (k6 yuk/stres testi icin, bkz. asagida) eklendi.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_k6_load_test:
+        description: 'k6 LOAD/STRESS testlerini de calistir (uzun surer, varsayilan: hayir)'
+        type: boolean
+        default: false
+
+# KOK NEDEN: backend hicbir zaman uretim/staging'e bu pipeline'dan
+# deploy EDILMIYOR (kullanicinin acik "production deploy YOK" kurali) --
+# CI yalnizca dogrulama yapar, hicbir yere yayin yapmaz.
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # ============================================================
+  # FRONTEND (dashboard/) -- cheap checks once, expensive (build) last.
+  # KOK NEDEN: eski dosyada `working-directory` HIC belirtilmiyordu ve
+  # komutlar repo KOKUNDEN calistiriliyordu -- ama `dashboard/` artik bir
+  # ALT dizin (repo koku package.json BARINDIRMIYOR); bu haliyle
+  # `npm ci` repo kokunde CALISMAZDI. `defaults.run.working-directory`
+  # ile duzeltildi.
+  # ============================================================
+  frontend:
+    name: Frontend (dashboard)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # KOK NEDEN (2026-08-31 duzeltmesi): dashboard'un GERCEK paket
+      # yoneticisi pnpm'dir (dashboard/pnpm-lock.yaml kaynak-dogrusu,
+      # README.md/dashboard/README.md zaten pnpm ile yaziliydi) --
+      # eski workflow yanlislikla npm/package-lock.json kullaniyordu,
+      # bu duzeltildi. `pnpm/action-setup`, `actions/setup-node`'un
+      # `cache: 'pnpm'` secenegini kullanabilmesi icin ONCE gelmeli.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+
+      - name: Install dependencies (deterministic)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Prettier check
+        run: pnpm run prettier
+
+      - name: Unit / component tests
+        run: pnpm run test
+        env:
+          NODE_ENV: test
+
+      - name: Coverage
+        run: pnpm run test:coverage
+        env:
+          NODE_ENV: test
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-coverage
+          path: dashboard/coverage
+          retention-days: 14
+
+      - name: Build (production bundle)
+        run: pnpm run build
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-dist
+          path: dashboard/dist
+          retention-days: 7
+
+  # ============================================================
+  # BACKEND (backend/)
+  # ============================================================
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies (deterministic)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Prettier check
+        run: npm run prettier
+
+      # KOK NEDEN (Section 8/9/26): CI, GERCEK/uretim MongoDB'sine ASLA
+      # baglanmaz. Backend'in KENDI test paketi zaten kurulu
+      # standarda uyuyor: `src/tests/support/*` altindaki in-memory sahte
+      # repository'ler (Mongo YERINE gecen). Auth/authz/self-privilege-
+      # escalation/audit-log-sizinti regresyon testleri BU suite'in
+      # PARCASI (bkz. docs/testing/testing.md) -- ayri bir adim GEREKMEZ,
+      # `npm test` hepsini kapsar.
+      - name: Unit / integration tests (in-memory repositories, no real Mongo)
+        run: npm test
+        env:
+          NODE_ENV: test
+
+      - name: Coverage
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          retention-days: 14
+
+      - name: Build
+        run: npm run build
+
+      # KOK NEDEN (Section 23): yalnizca GERCEKTEN var olan `/health`
+      # ucu test edilir (bkz. src/app.ts) -- `/health/live`,
+      # `/health/ready` gibi UYDURULMUS uclar YOK, bu yuzden test
+      # EDILMIYOR. Sunucu, gercek Mongo'ya ihtiyac duymayan in-memory
+      # k6 test sunucusuyla (bkz. tests/performance/server/k6TestServer.ts)
+      # gecici olarak ayaga kaldirilir.
+      - name: Smoke-start server and check /health
+        run: |
+          nohup env K6_TEST_SERVER_PORT=4001 npx tsx tests/performance/server/k6TestServer.ts > /tmp/health_server.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:4001/health > /dev/null; then
+              echo "backend /health OK"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend /health did not respond in time"
+          cat /tmp/health_server.log
+          exit 1
+
+  # ============================================================
+  # k6 SMOKE (Section 18: kisa, dusuk VU, her push/PR'da calisir).
+  # Uretime ASLA karsi calismaz (Section 19) -- yalnizca in-memory
+  # k6TestServer'a karsi, ayni PERFORMANCE_REPORT.md'de belgelenen
+  # yontemle.
+  # ============================================================
+  k6-smoke:
+    name: k6 performance smoke
+    needs: backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Start in-memory test server
+        run: |
+          nohup env K6_TEST_SERVER_PORT=4001 npx tsx tests/performance/server/k6TestServer.ts > /tmp/k6_server.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:4001/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/k6_server.log
+          exit 1
+
+      - name: Run k6 smoke scripts
+        run: |
+          k6 run tests/performance/k6/auth-smoke.js
+          k6 run tests/performance/k6/dictionary-read.js
+          k6 run tests/performance/k6/dictionary-crud.js
+          k6 run tests/performance/k6/personnel-read.js
+        env:
+          K6_TEST_SERVER_PORT: 4001
+
+  # ============================================================
+  # k6 LOAD/STRESS (Section 18: manuel/nightly, PR/push'ta calismaz).
+  # Yalnizca `workflow_dispatch` ile `run_k6_load_test=true` verildiginde
+  # calisir.
+  # ============================================================
+  k6-load-stress:
+    name: k6 load/stress (manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_k6_load_test == true
+    needs: backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Start in-memory test server
+        run: |
+          nohup env K6_TEST_SERVER_PORT=4001 npx tsx tests/performance/server/k6TestServer.ts > /tmp/k6_server.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:4001/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/k6_server.log
+          exit 1
+
+      - name: Run k6 load test (dictionary-read + auth)
+        run: |
+          k6 run tests/performance/k6/dictionary-read.js
+          k6 run tests/performance/k6/auth-smoke.js
+        env:
+          K6_TEST_SERVER_PORT: 4001
+
+  # ============================================================
+  # DOCKER (Section 20/21/22): yalnizca YEREL DOGRULAMA -- hicbir
+  # registry'ye PUSH edilmez, hicbir yere deploy edilmez.
+  # ============================================================
+  docker-build:
+    name: Docker build validation
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build backend image (dev — local validation only, no push)
+        run: docker build -t iqv-dictionary-backend:ci ./backend
+
+      - name: Build dashboard image (dev — local validation only, no push)
+        run: docker build -t iqv-dictionary-frontend:ci ./dashboard
+
+      - name: Validate docker-compose.yml (dev)
+        run: docker compose -f docker-compose.yml config
+
+      # ------------------------------------------------------------
+      # PRODUCTION images/compose — see scripts/windows/install.ps1 and
+      # scripts/linux/install.sh (`-Mode docker`) and
+      # docs/deployment/installation.md. Same "local validation only, no
+      # push, no deploy" rule as the dev images above.
+      # ------------------------------------------------------------
+      - name: Build backend PRODUCTION image (local validation only, no push)
+        run: docker build -f backend/Dockerfile.prod -t iqv-dictionary-backend:prod-ci ./backend
+
+      - name: Build dashboard PRODUCTION image (local validation only, no push)
+        run: |
+          docker build -f dashboard/Dockerfile.prod \
+            --build-arg VITE_API_BASE_URL=http://localhost:3001 \
+            -t iqv-dictionary-frontend:prod-ci ./dashboard
+
+      - name: Validate docker-compose.prod.yml
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.prod.yml --env-file .env config
+
+  scripts-lint:
+    name: Install/Update/Uninstall script lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Bash syntax check (scripts/linux)
+        run: |
+          set -e
+          for f in scripts/linux/*.sh; do
+            echo "Checking $f"
+            bash -n "$f"
+          done
+
+      - name: PowerShell syntax check (scripts/windows)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = Get-ChildItem -Path scripts/windows -Include *.ps1,*.psm1 -Recurse
+          $hadError = $false
+          foreach ($f in $files) {
+            Write-Host "Checking $($f.FullName)"
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) {
+              $hadError = $true
+              foreach ($e in $parseErrors) { Write-Error $e }
+            }
+          }
+          if ($hadError) { throw "PowerShell syntax errors found." }
+
+  # ============================================================
+  # MKDOCS (Section 27-35)
+  # ============================================================
+  mkdocs:
+    name: MkDocs build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install MkDocs
+        run: pip install -r requirements-docs.txt
+
+      - name: Build documentation (strict)
+        run: mkdocs build --strict
+
+      - name: Upload MkDocs site
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkdocs-site
+          path: site
+          retention-days: 14

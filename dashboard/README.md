@@ -162,3 +162,11 @@ For questions or feedback, contact [ibz.04dev@gmail.com](mailto:ibz.04dev@gmail.
 ## License
 
 [MIT](../LICENSE)
+
+## Development / Testing / CI
+
+This app now has a real backend (JWT auth, MongoDB) rather than the
+original ReqRes mock-API template it was scaffolded from — see the
+sections above for the mock-API quick start, but for actual
+development against the real API, tests, and the CI pipeline, see the
+repository-level docs in `../docs/development/`.

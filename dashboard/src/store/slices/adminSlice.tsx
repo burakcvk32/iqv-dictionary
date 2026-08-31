@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Admin } from '../../interfaces/models/admin';
 
 export type AdminState = Admin | null;
@@ -7,9 +7,9 @@ const initialState: AdminState = null;
 
 export const adminSlice = createSlice({
   name: 'admin',
-  initialState: initialState,
+  initialState: initialState as AdminState,
   reducers: {
-    login: (state, action) => {
+    login: (state, action: PayloadAction<Admin>) => {
       state = action.payload;
 
       return state;

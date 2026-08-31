@@ -1,0 +1,66 @@
+# Compose proje adı: Docker/Beszel tarafında container'lar/proje "dictionary"
+# gibi genel değil, "iqv-dictionary" (IQV Dictionary uygulaması) olarak
+# görünsün diye açıkça tanımlanır.
+name: iqv-dictionary
+
+services:
+  dictionary-backend:
+    build:
+      context: ./backend
+    # Beszel/Docker'da anlaşılır, IQVizyon standardında görünen isim.
+    # NOT: service key (dictionary-backend) bilinçli olarak DEĞİŞTİRİLMEDİ —
+    # frontend'in VITE_DEV_API_PROXY_TARGET değeri (aşağıda) Docker'ın dahili
+    # DNS'inde bu servis ADINI kullanıyor; service key değişseydi proxy
+    # hedefi de değişmek zorunda kalırdı (KESİNLİKLE KORU listesinde).
+    container_name: iqv-dictionary-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # backend/.env icindeki MONGODB_URI (mongodb://127.0.0.1:27017) bu
+      # container icinde container'in KENDI localhost'unu isaret eder --
+      # MongoDB Windows host'ta calistigindan Docker Desktop'in standart
+      # `host.docker.internal` adresine YONLENDIRILIR. Baska hicbir DB/env
+      # degeri degistirilmedi, mevcut .env aynen env_file ile yukleniyor.
+      MONGODB_URI: mongodb://host.docker.internal:27017
+    ports:
+      - '3001:3001'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      # KOK NEDEN DUZELTMESI: bu volume'ler eklenmeden once container,
+      # imaj build edilirken COPY . . ile alinan SABIT (donuk) bir kaynak
+      # kod kopyasi calistiriyordu. Host'ta (bu repo'da) sonradan yapilan
+      # HERHANGI bir kod degisikligi (`docker compose up -d --build`
+      # calistirilmadan) container icinde GORUNMUYORDU -- "Docker eski
+      # image'i servis ediyor" olasiliginin gercek nedeni budur. Artik
+      # ./backend, container icindeki /app'e canli olarak bind-mount
+      # ediliyor; boylece `npm run dev` (tsx watch) host'taki degisiklikleri
+      # aninda gorur. /app/node_modules ayri (anonim) bir volume olarak
+      # birakildi ki host'un Windows icin derlenmis node_modules'i,
+      # container icinde `npm ci` ile Linux icin kurulmus olani EZMESIN.
+      - ./backend:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  dictionary-frontend:
+    build:
+      context: ./dashboard
+    # Beszel/Docker'da anlaşılır, IQVizyon standardında görünen isim.
+    container_name: iqv-dictionary-frontend
+    environment:
+      # vite.config.ts'teki /api proxy hedefini backend container'inin
+      # Docker DNS adina (service key: dictionary-backend) yonlendirir --
+      # DEĞİŞTİRİLMEDİ (bkz. yukarıdaki not).
+      VITE_DEV_API_PROXY_TARGET: http://dictionary-backend:3001
+    ports:
+      - '5173:5173'
+    volumes:
+      # Ayni kok neden duzeltmesi frontend icin: ./dashboard host'taki
+      # canli kaynagi container'in /app'ine bind-mount eder, /app/node_modules
+      # ise container'in kendi (Linux icin kurulmus) node_modules'ini
+      # host'un Windows node_modules'inin EZMESINE karsi korur.
+      - ./dashboard:/app
+      - /app/node_modules
+    depends_on:
+      - dictionary-backend
+    restart: unless-stopped

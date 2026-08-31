@@ -4,5 +4,9 @@ export const webRoutes = {
   logout: '/logout',
   dashboard: '/dashboard',
   users: '/users',
-  about: '/about',
+  settings: '/settings',
+  dictionary: '/dictionary',
+  // Legacy misspelled route kept for backward compatibility; redirects to
+  // `dictionary` below rather than duplicating the page.
+  dictionaryLegacy: '/dictonary',
 };

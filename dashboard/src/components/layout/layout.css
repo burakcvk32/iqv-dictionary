@@ -1,0 +1,365 @@
+/*
+ * IQV Platform ile paylaşılan sidebar menü standardı.
+ *
+ * KÖK NEDEN (bu turda düzeltilen gerçek hata): aşağıdaki blok daha önce
+ * SADECE `.ant-pro-base-menu-inline-item-icon` / `-inline-item-text`
+ * sınıflarını hedefliyordu. Ancak bu projede ProLayout'un sider'i HER ZAMAN
+ * `collapsed: true` (bkz. layout/index.tsx, `defaultProps.collapsed` --
+ * genişleme ayrı bir overlay panelle yapılıyor, ProLayout'un kendi sider'i
+ * hiç genişlemiyor), yani kütüphane bu sınıfları DEĞİL, "kapalı" (vertical)
+ * karşılıklarını (`ant-pro-base-menu-vertical-item-icon` / `-vertical-
+ * item-text`) render ediyordu. Sonuç: hover/active renk kuralı DOM'da hiç
+ * karşılığı olmayan bir sınıfı hedeflediğinden HİÇBİR ZAMAN eşleşmiyordu.
+ * Ayrıca renk değerlerinde `!important` eksikti -- ProLayout'un kendi
+ * CSS-in-JS'i (antd token'larından üretilen) bu sınıflara zaten kendi
+ * rengini enjekte ediyor ve sıradan bir `color` kuralı bunu ezemiyordu.
+ *
+ * Bu blok artık IQV Platform'un GERÇEK referans dosyasından (Platform
+ * Frontend/dashboard/src/components/layout/layout.css, ~satır 13-112 ve
+ * ~255-264) BİREBİR taşındı: hem `-inline-` hem `-vertical-` varyantı
+ * kapsanır (sider ileride tekrar genişleyebilir hale gelirse de kırılmaz)
+ * ve tüm renk kuralları `!important` ile verilir.
+ *
+ * GERÇEK PLATFORM DAVRANIŞI (tahmin DEĞİL -- kaynak dosyanın kendi
+ * yorumuyla doğrulandı: "neutral text normally and for the active route,
+ * NO background box, blue text/icon on hover"): seçili/aktif rotanın
+ * ikonu KALICI OLARAK mavi KALMAZ, normal (nötr) tonda görünür; yalnızca
+ * üzerine gelindiğinde (hover) veya tıklanma anında (:active) mavi olur,
+ * mouse ayrılınca hemen nötr tona döner. Menü öğelerinin kendisi
+ * (Dictionary/Ayarlar/Kişi) ve sırası değişmedi -- yalnızca görünüm.
+ */
+
+/* Nötr metin/ikon rengi (normal durum + aktif/seçili rota) -- Platform'daki
+   gerçek değer: açık temada rgba(0,0,0,0.88), koyu temada
+   rgba(255,255,255,0.85). Hem ProLayout'un (her zaman collapsed/vertical)
+   sider'i hem de aşağıdaki genişletilmiş panelin düz `<Menu>`'sü aynı temel
+   `.ant-menu-item` sınıfını ürettiğinden tek kural ikisini de kapsar. */
+.iqv-app-layout .ant-menu-item,
+.iqv-app-layout .ant-menu-item-selected,
+.iqv-app-layout .ant-pro-base-menu-inline-item-icon,
+.iqv-app-layout .ant-pro-base-menu-inline-item-text,
+.iqv-app-layout .ant-pro-base-menu-vertical-item-icon,
+.iqv-app-layout .ant-pro-base-menu-vertical-item-text {
+  color: rgba(0, 0, 0, 0.88) !important;
+}
+
+html[data-theme-mode='dark'] .iqv-app-layout .ant-menu-item,
+html[data-theme-mode='dark'] .iqv-app-layout .ant-menu-item-selected,
+html[data-theme-mode='dark']
+  .iqv-app-layout
+  .ant-pro-base-menu-inline-item-icon,
+html[data-theme-mode='dark']
+  .iqv-app-layout
+  .ant-pro-base-menu-inline-item-text,
+html[data-theme-mode='dark']
+  .iqv-app-layout
+  .ant-pro-base-menu-vertical-item-icon,
+html[data-theme-mode='dark']
+  .iqv-app-layout
+  .ant-pro-base-menu-vertical-item-text {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Hover / basılı anlık -> mavi (metin, ikon, arrow currentColor ile miras
+   alır). Hem üst seviye (`.ant-menu-item`) hem de ProLayout'un iç
+   sarmalayıcı span'ları (`-inline-`/`-vertical-item-icon/-text`) AYRI AYRI
+   hedeflenir -- yalnızca üst seviyeyi hedeflemek, ProLayout'un kendi
+   CSS-in-JS'inin iç span'a enjekte ettiği rengi ezmeye YETMİYORDU (kök
+   neden). */
+.iqv-app-layout .ant-menu-item:hover,
+.iqv-app-layout .ant-menu-item-active,
+.iqv-app-layout .ant-menu-item:active,
+.iqv-app-layout .ant-menu-item-selected:hover {
+  color: #1677ff !important;
+}
+
+.iqv-app-layout .ant-menu-item:hover .ant-pro-base-menu-inline-item-icon,
+.iqv-app-layout .ant-menu-item:hover .ant-pro-base-menu-inline-item-text,
+.iqv-app-layout .ant-menu-item:hover .ant-pro-base-menu-vertical-item-icon,
+.iqv-app-layout .ant-menu-item:hover .ant-pro-base-menu-vertical-item-text,
+.iqv-app-layout .ant-menu-item-active .ant-pro-base-menu-inline-item-icon,
+.iqv-app-layout .ant-menu-item-active .ant-pro-base-menu-inline-item-text,
+.iqv-app-layout .ant-menu-item-active .ant-pro-base-menu-vertical-item-icon,
+.iqv-app-layout .ant-menu-item-active .ant-pro-base-menu-vertical-item-text,
+.iqv-app-layout .ant-menu-item:active .ant-pro-base-menu-inline-item-icon,
+.iqv-app-layout .ant-menu-item:active .ant-pro-base-menu-inline-item-text,
+.iqv-app-layout .ant-menu-item:active .ant-pro-base-menu-vertical-item-icon,
+.iqv-app-layout .ant-menu-item:active .ant-pro-base-menu-vertical-item-text {
+  color: #1677ff !important;
+}
+
+/* Arka plan kutusu YOK -- seçili/hover/aktif durumda antd'nin varsayılan
+   gri/mavi highlight kutusu tamamen nötrlenir (Platform'daki gibi yalnızca
+   metin/ikon rengi değişir). */
+.iqv-app-layout .ant-menu-item-selected,
+.iqv-app-layout .ant-menu-item:hover,
+.iqv-app-layout .ant-menu-item-active {
+  background: transparent !important;
+}
+
+/* antd'nin seçili öğeye eklediği sağ kenar çubuğu göstergesi gizlenir --
+   Platform'da da yok. */
+.iqv-app-layout .ant-menu-item::after {
+  display: none !important;
+}
+
+/* Anlık geri bildirim: renk geçişini kapat, bir öğeden diğerine geçerken
+   önceki öğe kısa süre mavi kalmasın (Platform'daki "instant hover
+   feedback" kuralıyla BİREBİR aynı gerekçe/kapsam). */
+.iqv-app-layout .ant-menu-item,
+.iqv-app-layout .ant-menu-item .ant-menu-title-content,
+.iqv-app-layout .ant-menu-item-icon,
+.iqv-app-layout .ant-pro-base-menu-inline-item-icon,
+.iqv-app-layout .ant-pro-base-menu-inline-item-text,
+.iqv-app-layout .ant-pro-base-menu-vertical-item-icon,
+.iqv-app-layout .ant-pro-base-menu-vertical-item-text {
+  transition: none !important;
+}
+
+/* =====================================================================
+   AŞAĞIDAKİ BLOK: IQV Platform'daki referans sidebar'dan (Platform
+   Frontend/dashboard/src/components/layout/layout.css) BİREBİR taşınan
+   masaüstü sider/logo/menü-ikon ölçüleri. Aynı @ant-design/pro-components
+   sürümü (^2.6.4) kullanıldığından DOM sınıfları birebir eşleşir. SADECE
+   masaüstü/genel görünüme ait kurallar taşındı -- Platform'un dar-ekran
+   (isNarrow) zorunlu-collapse ve özel `.iqv-sider-trigger` toggle
+   mantığı BİLİNÇLİ OLARAK taşınmadı; bu projenin kendi çalışan
+   mobil/dar-ekran davranışı DEĞİŞMEDİ.
+   ===================================================================== */
+
+.iqv-app-layout {
+  --iqv-sider-inset: 24px;
+  --iqv-header-root-inset: 16px;
+  --iqv-collapsed-menu-inset: 8px;
+  --iqv-collapsed-item-width: 40px;
+}
+
+/* Logo alanı ve menü kapsayıcısı kendi yatay padding/margin'lerini
+   kullanmasın; ikisi de ortak --iqv-sider-inset kökeninden hizalanır. */
+.iqv-app-layout .ant-pro-global-header-logo,
+.iqv-app-layout .ant-pro-global-header-logo > a,
+.iqv-app-layout .ant-pro-top-nav-header-logo,
+.iqv-app-layout .ant-pro-top-nav-header-logo > a,
+.iqv-app-layout .ant-pro-sider-logo,
+.iqv-app-layout .ant-menu-root {
+  padding-inline: 0 !important;
+  margin-inline: 0 !important;
+}
+
+.iqv-app-layout .ant-pro-sider-logo {
+  padding-inline-start: var(--iqv-sider-inset) !important;
+}
+
+/* AÇIK sidebar: her menü öğesinin ikonu ortak inset'ten başlar. */
+.iqv-app-layout .ant-menu-inline .ant-menu-item,
+.iqv-app-layout .ant-menu-inline .ant-menu-submenu-title {
+  padding-inline-start: var(--iqv-sider-inset) !important;
+  padding-inline-end: 16px !important;
+  margin-inline: 0 !important;
+  width: 100% !important;
+}
+
+/* Sabit genişlikli ikon + tüm satırlarda tek/eşit ikon-yazı boşluğu --
+   Platform'daki gibi tüm sidebar iconları (doküman, ayarlar, kullanıcı)
+   aynı kutuda hizalanır, biri büyük biri küçük görünmez. */
+.iqv-app-layout .ant-menu-item .ant-menu-item-icon,
+.iqv-app-layout .ant-menu-submenu-title .ant-menu-item-icon {
+  min-width: 18px !important;
+  width: 18px !important;
+  font-size: 16px !important;
+  margin-inline-end: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* KAPALI sidebar: ikonlar dar sider içinde ortalanır; ekstra padding yok,
+   metin zaten gizli. */
+.iqv-app-layout .ant-menu-inline-collapsed .ant-menu-item,
+.iqv-app-layout .ant-menu-inline-collapsed .ant-menu-submenu-title {
+  padding-inline: 0 !important;
+  margin-inline: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.iqv-app-layout .ant-menu-inline-collapsed .ant-menu-item .ant-menu-item-icon {
+  margin-inline-end: 0 !important;
+}
+
+.iqv-app-layout .ant-menu-inline-collapsed .ant-menu-title-content {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+/* KAPALI SIDEBAR — logo ↔ menü ikonları ortak yatay merkez. Sider'in
+   collapsed genişliği ProLayout'un kendi varsayılanıdır (collapsedWidth
+   prop'u verilmedi). Sider artık HER ZAMAN collapsed olduğundan (bkz.
+   layout/index.tsx'teki `collapsed: true`) `.iqv-sider-collapsed` sınıfı
+   dış `<div>`'de koşulsuz duruyor -- bu blok her zaman uygulanır. */
+.iqv-app-layout.iqv-sider-collapsed .ant-pro-global-header-logo {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: var(--iqv-collapsed-item-width) !important;
+  margin-inline-start: calc(
+    (-1 * var(--iqv-header-root-inset)) + var(--iqv-collapsed-menu-inset)
+  ) !important;
+  margin-inline-end: 0 !important;
+}
+
+/* =====================================================================
+   GENİŞ SIDEBAR — OVERLAY PANEL + BACKDROP.
+
+   IQV Platform referansındaki "arka plana dokun, sidebar genişlesin"
+   overlay'inden (Platform Frontend/dashboard/src/components/layout/
+   layout.css, `.iqv-mobile-sider-backdrop` / `.iqv-mobile-sider-overlay`)
+   BİREBİR taşındı -- Platform'da bu SADECE dar ekranda kullanılır, bu
+   projede ise (talep gereği) ekran genişliğinden bağımsız, TEK collapse/
+   expand mekanizması olarak kullanılıyor (bkz. layout/index.tsx'teki
+   `expanded` state'i). ProLayout'un sider'i HER ZAMAN 64px'de sabit kalır
+   (`collapsed: true`); bu panel ONUN ÜZERİNE biner -- sayfa içeriğinin
+   margin/padding'ine DOKUNULMAZ, içerik YERİNDE kalır. z-index değerleri,
+   ProLayout'un sabit header'ından (kütüphanenin kendi CSS-in-JS'inde
+   `zIndex: 19`) KESİN olarak daha yüksek -- panel/backdrop onun ÜZERİNDE
+   görünür. */
+.iqv-mobile-sider-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+}
+
+.iqv-mobile-sider-overlay {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+/* SIDEBAR AÇMA/KAPATMA OKU -- YALNIZCA KLAVYE ODAĞI.
+   Okun durgun/hover görünümü satır içi stilde ve React state ile verilir
+   (bkz. layout/index.tsx -> `iqv-sider-trigger`, IQV Platform'daki
+   `CollapsedIcon` ile BİREBİR aynı değerler). Burada yalnızca satır içi
+   stille ÇAKIŞMAYAN tek şey tanımlanır: klavye ile gezinirken odağın
+   görünür kalması. */
+.iqv-app-layout .iqv-sider-trigger:focus-visible {
+  outline: 2px solid var(--colorStrokeFocus2, #000000);
+  outline-offset: 1px;
+}
+
+/* =====================================================================
+   SAYFA YATAY GİRİNTİSİ -- sidebar sağ kenarı ile sayfa içeriği/kartın sol
+   kenarı arasındaki mesafenin TEK KAYNAĞI. IQV Platform referansından
+   (Platform Frontend/dashboard/src/components/layout/layout.css,
+   `.ant-pro-page-container-children-container` bloğu) BİREBİR taşındı --
+   kaynakta belgelenen ölçüm zinciri: `.ant-pro-layout-content` (tüm
+   sayfalar PageContainer kullandığından `&-has-page-container` ile
+   yatay katkısı 0) + `.ant-pro-page-container-children-container`'ın
+   kütüphane varsayılanı (`paddingInlinePageContainerContent || 40`, bkz.
+   pro-provider `layoutToken.js`) + IQV'nin kendi dış girinti token'ı
+   (masaüstü `spacingHorizontalXXXL`=32, tablet `spacingHorizontalXL`=20,
+   mobil `spacingHorizontalS`=8). Toplam EFEKTİF mesafe: masaüstü
+   40+32=72px, tablet 20px, mobil 8px -- Platform'daki GERÇEK, kaynaktan
+   doğrulanmış değerler, tahmini px DEĞİL. Önceki Dictionary değeri:
+   yalnızca kütüphane varsayılanı (~40px masaüstü/tablet), mobilde ise
+   PageContainer.tsx'teki satır içi `paddingInline: 15` (bkz. o dosyadaki
+   güncellenmiş yorum) -- şimdi TEK bu kural geçerli, sayfa bazlı hiçbir
+   margin-left/padding-left EKLENMEDİ; Dictionary/Ayarlar/Kişi sayfalarının
+   HEPSİ ortak `BasePageContainer` üzerinden bu tek kaynaktan beslenir. */
+.iqv-app-layout .ant-pro-page-container-children-container {
+  padding-inline: calc(40px + var(--spacingHorizontalXXXL, 32px)) !important;
+}
+
+@media (min-width: 768px) and (max-width: 1099.98px) {
+  .iqv-app-layout .ant-pro-page-container-children-container {
+    padding-inline: var(--spacingHorizontalXL, 20px) !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .iqv-app-layout .ant-pro-page-container-children-container {
+    padding-inline: var(--spacingHorizontalS, 8px) !important;
+  }
+}
+
+/* =====================================================================
+   HEADER SAĞ AKSİYON GRUBU (tema/tam ekran ikonları + profil ikonu) --
+   IQV Platform'un GERÇEK referans dosyasından (Platform Frontend/
+   dashboard/src/components/layout/layout.css) BİREBİR taşınmıştır. Aynı
+   @ant-design/pro-components sürümü (^2.6.4) kullanıldığından DOM
+   sınıfları birebir eşleşir.
+
+   KÖK NEDEN: bu blok bu projede HİÇ yoktu -- ProLayout'un kendi
+   varsayılan biçiminde `-header-actions-item` (tema/tam ekran) ile
+   `-header-actions-avatar` (profil) arasında 0px/16px asimetrik boşluk ve
+   farklı ikon boyutu oluşuyor, bu da üç ikonun aynı yatay çizgide/eşit
+   aralıkla durmamasına yol açıyordu. Aşağıdaki üç blok bunu giderir;
+   ikonların işlevi (tema değiştirme, tam ekran, profil menüsü) ve
+   header/sidebar'ın geri kalanı DEĞİŞMEZ. */
+.iqv-app-layout {
+  --iqv-header-inset: 16px;
+}
+
+@media (min-width: 768px) {
+  .iqv-app-layout {
+    --iqv-header-inset: 41px;
+  }
+}
+
+.iqv-app-layout {
+  --iqv-header-inset-extra: var(--spacingHorizontalS, 8px);
+}
+
+@media (min-width: 1200px) {
+  .iqv-app-layout {
+    --iqv-header-inset-extra: var(--spacingHorizontalM, 12px);
+  }
+}
+
+/* Sağ aksiyon alanının sağ boşluğunu ortak inset'e sabitle. Birden çok
+   olası kapsayıcı hedeflenir; ProLayout sürüm farklarına karşı dayanıklı. */
+.iqv-app-layout .ant-pro-global-header-header-actions,
+.iqv-app-layout .ant-pro-global-header .ant-pro-global-header-header-actions {
+  padding-inline-end: calc(
+    var(--iqv-header-inset) + var(--iqv-header-inset-extra)
+  ) !important;
+  margin-inline-end: 0 !important;
+  /* TAŞMA GÜVENLİĞİ: grup header'ın dışına çıkamaz, ikonlar kırpılmaz.
+     Yükseklik, ikon boyutu ve hizalama DEĞİŞMEZ. */
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+/* Dar ekranda ikonlar SIKIŞMAZ: flex kapsayıcıda hiçbir öge küçültülmez,
+   böylece profil ikonu yarım görünmez. */
+.iqv-app-layout .ant-pro-global-header-header-actions-item,
+.iqv-app-layout .ant-pro-global-header-header-actions-avatar {
+  flex: 0 0 auto;
+}
+
+/* Üç öge (tema/tam ekran/profil) arasına eşit, ölçülü bir gap eklenir --
+   ProLayout'un kendi varsayılanında bu üçü arasında boşluk YOKTU. */
+.iqv-app-layout .ant-pro-global-header-header-actions {
+  gap: 10px;
+}
+
+/* REFERANS İLE BİREBİR: yalnızca `-item` sarmalayıcısı ikon boyutunu
+   büyütür; avatar sarmalayıcısının kendi metriği ve kütüphaneden gelen
+   `padding-inline-end: 16px` değeri KORUNUR. */
+.iqv-app-layout .ant-pro-global-header-header-actions-item {
+  font-size: 18px !important;
+}
+
+.iqv-app-layout .ant-pro-global-header-header-actions-avatar {
+  padding-inline-start: 6px !important;
+}

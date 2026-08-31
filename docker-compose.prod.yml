@@ -1,0 +1,81 @@
+# ============================================================
+# IQV Dictionary — PRODUCTION Docker Compose.
+#
+# Separate on purpose from the root docker-compose.yml, which is the
+# existing hot-reload DEVELOPMENT setup (bind-mounted source, `npm run
+# dev` / `pnpm run dev` inside the containers — see its own header
+# comments) and is left completely untouched so `docker compose up -d`
+# keeps working exactly as before for local development.
+#
+# This file is the production counterpart, used by
+# scripts/windows/install.ps1 and scripts/linux/install.sh in
+# `-Mode docker` (and by `npm run docker:up` — see root package.json):
+# real production images (backend/Dockerfile.prod,
+# dashboard/Dockerfile.prod), no bind mounts, no dev servers.
+#
+# MongoDB is NOT containerized here: per the existing dev compose (and
+# the backend's own MONGODB_URI default), MongoDB already runs
+# externally (host machine / an existing server) — this installer does
+# not stand up a new database, and never touches its data (see README.md
+# "Uninstall" / "Data Güvenliği").
+#
+# Ports and the frontend's build-time API URL are read from the repo
+# root `.env` (see .env.example) — install/update scripts create it
+# automatically from .env.example when missing.
+# ============================================================
+
+name: iqv-dictionary-prod
+
+services:
+  dictionary-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    image: iqv-dictionary-backend:prod
+    container_name: iqv-dictionary-backend-prod
+    env_file:
+      - ./backend/.env
+    environment:
+      # Same reasoning as the dev docker-compose.yml: backend/.env's
+      # MONGODB_URI (mongodb://127.0.0.1:27017) means the CONTAINER's own
+      # localhost inside Docker, not the host machine running MongoDB —
+      # redirected to Docker's host-gateway alias. No other DB/env value
+      # is touched; everything else loads from backend/.env unchanged.
+      MONGODB_URI: mongodb://host.docker.internal:27017
+      PORT: ${IQV_BACKEND_PORT:-3001}
+    ports:
+      - '${IQV_BACKEND_PORT:-3001}:${IQV_BACKEND_PORT:-3001}'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://127.0.0.1:${IQV_BACKEND_PORT:-3001}/health || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  dictionary-frontend:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3001}
+    image: iqv-dictionary-frontend:prod
+    container_name: iqv-dictionary-frontend-prod
+    ports:
+      - '${IQV_FRONTEND_PORT:-8080}:80'
+    depends_on:
+      dictionary-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1/ || exit 1']
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

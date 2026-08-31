@@ -7,17 +7,19 @@ enum LayoutType {
 }
 
 const CONFIG = {
-  appName: 'IQV',
-  helpLink: 'https://github.com/iBz-04/Dashboard-starter',
+  // Uygulamanın görünen adı — browser sekmesi (<title>, dashboard/index.html
+  // üzerinden vite.config.ts `createHtmlPlugin`), PWA manifest name/short_name
+  // ve marka ikonlarının alt metninde kullanılır. Yalnızca GÖRÜNEN isim —
+  // logo, UI tasarımı veya sayfa içeriği bu değişiklikten ETKİLENMEZ.
+  appName: 'IQV Dictionary',
   enablePWA: true,
   theme: {
     accentColor: '#838cf9',
     sidebarLayout: LayoutType.MIX,
-    showBreadcrumb: true,
   },
   metaTags: {
-    title: 'Reforge',
-    description: 'A dashboard UI solution for Saas and web apps.',
+    title: 'IQV Dictionary',
+    description: 'IQV Dictionary — terim sözlüğü ve platform yönetim paneli.',
     imageURL: 'logo.svg',
   },
 };
