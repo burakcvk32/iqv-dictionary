@@ -9,9 +9,9 @@ import { SearchBox } from '@iqvizyonui/react-components';
 import {
   ExclamationCircleOutlined,
   RobotOutlined,
-  ToolOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
+import { MdOutlineFactory } from 'react-icons/md';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
@@ -234,7 +234,7 @@ const SubgroupOptionCard = ({
         fontWeight: 500,
         lineHeight: 1.4,
         textAlign: 'center',
-        color: token.colorText,
+        color: token.colorTextSecondary,
       }}
     >
       {label}
@@ -495,7 +495,7 @@ const Dictionary = () => {
           </Col>
           <Col xl={8} lg={8} md={8} sm={24} xs={24}>
             <StatCard
-              icon={<ToolOutlined />}
+              icon={<MdOutlineFactory />}
               label={DICTIONARY_GROUP_INDUSTRIAL}
               value={stats?.industrial ?? 0}
               loading={statsLoading}
@@ -521,7 +521,7 @@ const Dictionary = () => {
               style={{
                 fontSize: 13,
                 fontWeight: 600,
-                color: token.colorText,
+                color: token.colorTextSecondary,
                 marginBottom: 8,
               }}
             >
